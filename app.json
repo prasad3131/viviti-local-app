@@ -6,10 +6,18 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "ios": { "supportsTablet": true },
+    "ios": {
+      "supportsTablet": true
+    },
     "android": {
       "edgeToEdgeEnabled": true,
-      "package": "com.viviti.local"
+      "package": "com.viviti.local",
+      "usesCleartextTraffic": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a0e8eebe-d5d8-4135-95a5-c08b2feb2066"
+      }
     }
   }
 }
