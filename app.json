@@ -11,9 +11,18 @@
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "package": "com.viviti.local",
-      "usesCleartextTraffic": true
+      "package": "com.viviti.local"
     },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "a0e8eebe-d5d8-4135-95a5-c08b2feb2066"
