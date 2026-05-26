@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, Dimensions, Alert, Modal, TextInput,
   RefreshControl, ScrollView, PanResponder, TouchableWithoutFeedback,
+  BackHandler,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -48,9 +49,20 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
   const currentPath = pathStack.join('/');
   const selecting = selected.size > 0;
 
-  // Swipe-back: ref keeps navigateBack current inside the PanResponder closure
+  // Swipe-back: ref keeps navigateBack current inside closures
   const navigateBackRef = useRef(navigateBack);
   useEffect(() => { navigateBackRef.current = navigateBack; });
+
+  // Intercept Android hardware back button / system back gesture
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (showNewFolder) { setShowNewFolder(false); return true; }
+      if (showCopyPicker) { setShowCopyPicker(false); return true; }
+      navigateBackRef.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, [showNewFolder, showCopyPicker]);
 
   const swipeEdge = useRef(
     PanResponder.create({
