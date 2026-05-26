@@ -251,7 +251,7 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
       await movePhotos(currentPath, Array.from(selected), destPath);
       setShowCopyPicker(false);
       setSelected(new Set());
-      Alert.alert('Copied', `${selected.size} photo(s) moved successfully.`);
+      load(currentPath);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Copy failed.');
     } finally {

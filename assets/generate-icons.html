@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Viviti Icon Generator</title>
+  <style>
+    body { font-family: sans-serif; padding: 32px; background: #f5f5f5; }
+    canvas { border-radius: 20%; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin: 16px; }
+    .row { display: flex; align-items: center; gap: 24px; margin-bottom: 24px; }
+    button {
+      background: #257af0; color: #fff; border: none;
+      padding: 12px 24px; border-radius: 8px; font-size: 15px;
+      cursor: pointer; font-weight: 600;
+    }
+    button:hover { background: #1a5fbe; }
+    h2 { color: #1a1118; }
+  </style>
+</head>
+<body>
+  <h2>Viviti Icon Generator</h2>
+  <p>Click each button to download the PNG. Save both files into the <code>assets/</code> folder.</p>
+
+  <div class="row">
+    <canvas id="icon" width="1024" height="1024"></canvas>
+    <div>
+      <p><strong>icon.png</strong> — 1024×1024</p>
+      <button onclick="download('icon', 'icon.png')">⬇ Download icon.png</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <canvas id="adaptive" width="1024" height="1024"></canvas>
+    <div>
+      <p><strong>adaptive-icon.png</strong> — 1024×1024 (foreground only, transparent bg)</p>
+      <button onclick="download('adaptive', 'adaptive-icon.png')">⬇ Download adaptive-icon.png</button>
+    </div>
+  </div>
+
+  <script>
+    function drawIcon(canvasId, transparent) {
+      const c = document.getElementById(canvasId);
+      const ctx = c.getContext('2d');
+      const size = 1024;
+
+      ctx.clearRect(0, 0, size, size);
+
+      if (!transparent) {
+        // Background — rounded square (blue)
+        const r = 180;
+        ctx.beginPath();
+        ctx.moveTo(r, 0);
+        ctx.lineTo(size - r, 0);
+        ctx.quadraticCurveTo(size, 0, size, r);
+        ctx.lineTo(size, size - r);
+        ctx.quadraticCurveTo(size, size, size - r, size);
+        ctx.lineTo(r, size);
+        ctx.quadraticCurveTo(0, size, 0, size - r);
+        ctx.lineTo(0, r);
+        ctx.quadraticCurveTo(0, 0, r, 0);
+        ctx.closePath();
+        ctx.fillStyle = '#257af0';
+        ctx.fill();
+      }
+
+      // Draw bold "V" shape
+      ctx.fillStyle = '#ffffff';
+      const cx = size / 2;
+      const top = 200;
+      const bottom = 750;
+      const armW = 110;
+      const tipW = 80;
+
+      ctx.beginPath();
+      // Left arm of V
+      ctx.moveTo(cx - 310, top);
+      ctx.lineTo(cx - 310 + armW, top);
+      ctx.lineTo(cx, bottom - tipW / 2);
+      ctx.lineTo(cx - tipW / 2, bottom);
+      ctx.closePath();
+      ctx.fill();
+
+      // Right arm of V
+      ctx.beginPath();
+      ctx.moveTo(cx + 310, top);
+      ctx.lineTo(cx + 310 - armW, top);
+      ctx.lineTo(cx, bottom - tipW / 2);
+      ctx.lineTo(cx + tipW / 2, bottom);
+      ctx.closePath();
+      ctx.fill();
+
+      // "iviti" text below V
+      ctx.font = 'bold 108px -apple-system, Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = transparent ? '#257af0' : '#ffffff';
+      ctx.fillText('VIVITI', cx, 890);
+    }
+
+    drawIcon('icon', false);
+    drawIcon('adaptive', true);
+
+    function download(canvasId, filename) {
+      const c = document.getElementById(canvasId);
+      const a = document.createElement('a');
+      a.href = c.toDataURL('image/png');
+      a.download = filename;
+      a.click();
+    }
+  </script>
+</body>
+</html>
