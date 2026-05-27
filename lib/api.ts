@@ -6,6 +6,21 @@ export interface Photo {
   modified: string;
 }
 
+export interface CritiqueIssue {
+  type: string;
+  sev: 'high' | 'medium' | 'low' | 'none';
+  msg: string;
+}
+
+export interface CritiqueResult {
+  score: number;
+  blur_score: number;
+  brightness: number;
+  noise: number;
+  issues: CritiqueIssue[];
+  error?: string;
+}
+
 async function deviceBase(): Promise<string> {
   const s = await loadSession();
   if (!s?.deviceIp) throw new Error('No device configured. Go to Settings and enter the device IP.');
@@ -137,4 +152,18 @@ export async function deletePhotos(folderPath: string, names: string[]): Promise
     body: JSON.stringify({ path: folderPath, names }),
   });
   if (!res.ok) throw new Error('Delete failed');
+}
+
+export async function critiquePhoto(
+  folderPath: string,
+  name: string,
+): Promise<CritiqueResult> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(`${base}/ai/critique`, 20000, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: folderPath, name }),
+  });
+  if (!res.ok) throw new Error('Critique request failed');
+  return res.json();
 }
