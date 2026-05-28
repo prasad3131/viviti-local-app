@@ -9,7 +9,14 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   getFolders, getPhotos, uploadPhotos, deletePhotos,
   movePhotos, createFolder, deleteFolder, Photo,
+  getAiTags, getTaggedPhotos, AiTag, TaggedPhoto,
 } from '../lib/api';
+
+const TAG_EMOJI: Record<string, string> = {
+  beach: '🏖', food: '🍕', pets: '🐶', landscape: '🏔',
+  nature: '🌿', sport: '⚽', vehicle: '🚗', birthday: '🎂',
+  indoor: '🏠', outdoor: '🌳', people: '👤',
+};
 import SmartImage from '../components/SmartImage';
 
 const PHOTO_COL = 3;
@@ -38,6 +45,12 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Tag filter
+  const [aiTags, setAiTags] = useState<AiTag[]>([]);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [taggedPhotos, setTaggedPhotos] = useState<TaggedPhoto[]>([]);
+  const [loadingTagPhotos, setLoadingTagPhotos] = useState(false);
 
   // Copy picker modal
   const [showCopyPicker, setShowCopyPicker] = useState(false);
@@ -95,6 +108,12 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
 
   useEffect(() => { load(currentPath); }, [currentPath, foldersOnly]);
 
+  useEffect(() => {
+    setActiveTag(null);
+    setAiTags([]);
+    getAiTags(currentPath).then(setAiTags).catch(() => {});
+  }, [currentPath]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     setSelected(new Set());
@@ -112,6 +131,19 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
     } catch {}
     setLoadingMore(false);
   };
+
+  // ── Tag filter ─────────────────────────────────────────────────────────────
+
+  async function handleTagSelect(tag: string | null) {
+    setActiveTag(tag);
+    if (!tag) return;
+    setLoadingTagPhotos(true);
+    try {
+      const result = await getTaggedPhotos(tag, currentPath);
+      setTaggedPhotos(result);
+    } catch {}
+    setLoadingTagPhotos(false);
+  }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
@@ -367,9 +399,52 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
         ))}
       </ScrollView>
 
+      {/* ── Tag filter bar ── */}
+      {!foldersOnly && aiTags.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tagBar}
+          contentContainerStyle={styles.tagBarContent}>
+          <TouchableOpacity
+            style={[styles.tagPill, activeTag === null && styles.tagPillActive]}
+            onPress={() => handleTagSelect(null)}
+          >
+            <Text style={[styles.tagPillText, activeTag === null && styles.tagPillActiveText]}>All</Text>
+          </TouchableOpacity>
+          {aiTags.map(({ tag, count }) => (
+            <TouchableOpacity
+              key={tag}
+              style={[styles.tagPill, activeTag === tag && styles.tagPillActive]}
+              onPress={() => handleTagSelect(tag)}
+            >
+              <Text style={[styles.tagPillText, activeTag === tag && styles.tagPillActiveText]}>
+                {TAG_EMOJI[tag] ?? '🏷'} {tag[0].toUpperCase() + tag.slice(1)} · {count}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {/* ── Content ── */}
       {loading ? (
         <ActivityIndicator color="#257af0" style={{ marginTop: 60 }} />
+      ) : activeTag ? (
+        loadingTagPhotos ? (
+          <ActivityIndicator color="#257af0" style={{ marginTop: 60 }} />
+        ) : (
+          <FlatList
+            data={taggedPhotos}
+            keyExtractor={item => item.photo_path}
+            numColumns={PHOTO_COL}
+            ListEmptyComponent={<Text style={styles.empty}>No {activeTag} photos found here.</Text>}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                onPress={() => onOpenPhoto(item.folder, item.name)}
+                activeOpacity={0.8}
+              >
+                <SmartImage folderPath={item.folder} photoName={item.name} style={styles.thumb} thumb />
+              </TouchableOpacity>
+            )}
+          />
+        )
       ) : foldersOnly ? (
         <ScrollView
           contentContainerStyle={styles.foldersOnlyContent}
@@ -404,7 +479,7 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
                 onLongPress={() => toggleSelect(item.name)}
                 activeOpacity={0.8}
               >
-                <SmartImage folderPath={currentPath} photoName={item.name} style={styles.thumb} />
+                <SmartImage folderPath={currentPath} photoName={item.name} style={styles.thumb} thumb />
                 {isSelected && (
                   <View style={styles.checkOverlay}>
                     <Text style={styles.check}>✓</Text>
@@ -570,6 +645,17 @@ const styles = StyleSheet.create({
   modalCancelText: { color: '#6b6070', fontWeight: '600' },
   modalConfirm: { flex: 1, backgroundColor: '#257af0', borderRadius: 10, padding: 12, alignItems: 'center' },
   modalConfirmText: { color: '#fff', fontWeight: '700' },
+
+  // Tag filter bar
+  tagBar: { backgroundColor: '#fefcfe', borderBottomWidth: 1, borderBottomColor: '#e0dbe2', flexGrow: 0 },
+  tagBarContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row' },
+  tagPill: {
+    borderWidth: 1, borderColor: '#c0d8fc', borderRadius: 20,
+    paddingHorizontal: 11, paddingVertical: 5, backgroundColor: '#f0f6ff',
+  },
+  tagPillActive: { backgroundColor: '#257af0', borderColor: '#257af0' },
+  tagPillText: { fontSize: 12, color: '#257af0', fontWeight: '600' },
+  tagPillActiveText: { color: '#fff' },
 
   // Copy picker modal
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },

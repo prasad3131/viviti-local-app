@@ -98,6 +98,11 @@ export async function photoUrl(folderPath: string, name: string): Promise<string
   return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}`;
 }
 
+export async function thumbUrl(folderPath: string, name: string, size = 200): Promise<string> {
+  const base = await deviceBase();
+  return `${base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}`;
+}
+
 export async function uploadPhotos(
   folderPath: string,
   assets: Array<{ uri: string; name: string; type: string }>,
@@ -152,6 +157,31 @@ export async function deletePhotos(folderPath: string, names: string[]): Promise
     body: JSON.stringify({ path: folderPath, names }),
   });
   if (!res.ok) throw new Error('Delete failed');
+}
+
+export interface AiTag { tag: string; count: number; }
+export interface TaggedPhoto { photo_path: string; folder: string; name: string; }
+
+export async function getAiTags(folderPath: string): Promise<AiTag[]> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(
+    `${base}/ai/tags?path=${encodeURIComponent(folderPath)}`, 8000,
+  );
+  if (!res.ok) return [];
+  const { tags } = await res.json();
+  return tags ?? [];
+}
+
+export async function getTaggedPhotos(
+  tag: string, folderPath: string,
+): Promise<TaggedPhoto[]> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(
+    `${base}/ai/tagged?tag=${encodeURIComponent(tag)}&path=${encodeURIComponent(folderPath)}`, 8000,
+  );
+  if (!res.ok) return [];
+  const { photos } = await res.json();
+  return photos ?? [];
 }
 
 export async function critiquePhoto(
