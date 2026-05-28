@@ -18,6 +18,35 @@ function scoreColor(s: number) {
   return '#f43f5e';
 }
 
+function scoreLabel(s: number) {
+  if (s >= 80) return 'Excellent';
+  if (s >= 60) return 'Good';
+  if (s >= 40) return 'Needs Work';
+  return 'Poor';
+}
+
+function blurLabel(v: number) {
+  if (v >= 200) return 'Sharp';
+  if (v >= 100) return 'Slightly soft';
+  if (v >= 50)  return 'Blurry';
+  return 'Very blurry';
+}
+
+function brightnessLabel(v: number) {
+  if (v > 200) return 'Overexposed';
+  if (v > 160) return 'Slightly bright';
+  if (v > 60)  return 'Well exposed';
+  if (v > 30)  return 'Slightly dark';
+  return 'Underexposed';
+}
+
+function noiseLabel(v: number) {
+  if (v < 3)  return 'Clean';
+  if (v < 6)  return 'Slight noise';
+  if (v < 10) return 'Noisy';
+  return 'Very noisy';
+}
+
 function IssueRow({ issue }: { issue: CritiqueIssue }) {
   const color = SEV_COLOR[issue.sev] ?? '#888';
   const dot = issue.sev === 'none' ? '✓' : '●';
@@ -90,7 +119,12 @@ export default function PhotoViewerScreen({
           {result && (
             <>
               <View style={s.scoreRow}>
-                <Text style={s.scoreLbl}>Photo Score</Text>
+                <View>
+                  <Text style={s.scoreLbl}>Photo Score</Text>
+                  <Text style={[s.scoreRating, { color: scoreColor(result.score) }]}>
+                    {scoreLabel(result.score)}
+                  </Text>
+                </View>
                 <Text style={[s.scoreNum, { color: scoreColor(result.score) }]}>
                   {result.score}
                   <Text style={s.scoreOf}>/100</Text>
@@ -102,6 +136,21 @@ export default function PhotoViewerScreen({
                   width: `${result.score}%` as any,
                   backgroundColor: scoreColor(result.score),
                 }]} />
+              </View>
+
+              <View style={s.metrics}>
+                <View style={s.metric}>
+                  <Text style={s.metricLbl}>Focus</Text>
+                  <Text style={s.metricVal}>{blurLabel(result.blur_score)}</Text>
+                </View>
+                <View style={s.metric}>
+                  <Text style={s.metricLbl}>Exposure</Text>
+                  <Text style={s.metricVal}>{brightnessLabel(result.brightness)}</Text>
+                </View>
+                <View style={s.metric}>
+                  <Text style={s.metricLbl}>Noise</Text>
+                  <Text style={s.metricVal}>{noiseLabel(result.noise)}</Text>
+                </View>
               </View>
 
               <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
@@ -149,10 +198,16 @@ const s = StyleSheet.create({
     alignSelf: 'center', marginBottom: 22,
   },
 
-  scoreRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
+  scoreRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   scoreLbl:     { color: '#9e96a4', fontSize: 14, fontWeight: '600' },
+  scoreRating:  { fontSize: 18, fontWeight: '700', marginTop: 2 },
   scoreNum:     { fontSize: 40, fontWeight: '800' },
   scoreOf:      { fontSize: 16, fontWeight: '400', color: '#6b6070' },
+
+  metrics:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  metric:       { flex: 1, backgroundColor: '#2a2030', borderRadius: 10, padding: 10, marginHorizontal: 3, alignItems: 'center' },
+  metricLbl:    { color: '#9e96a4', fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  metricVal:    { color: '#e8e0ee', fontSize: 12, fontWeight: '700', textAlign: 'center' },
 
   barBg:        { height: 6, borderRadius: 3, backgroundColor: '#2a2030', marginBottom: 22, overflow: 'hidden' },
   barFill:      { height: 6, borderRadius: 3 },
