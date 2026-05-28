@@ -9,7 +9,11 @@ import { critiquePhoto, CritiqueResult, CritiqueIssue } from '../lib/api';
 const { width, height } = Dimensions.get('window');
 
 const SEV_COLOR: Record<string, string> = {
-  high: '#f43f5e', medium: '#f97316', low: '#eab308', none: '#22c55e',
+  high: '#f43f5e', medium: '#f97316', low: '#eab308',
+};
+
+const MOOD_EMOJI: Record<string, string> = {
+  warm: '🌅', cool: '🌊', neutral: '⚖️',
 };
 
 function scoreColor(s: number) {
@@ -19,41 +23,37 @@ function scoreColor(s: number) {
 }
 
 function scoreLabel(s: number) {
-  if (s >= 80) return 'Excellent';
-  if (s >= 60) return 'Good';
+  if (s >= 85) return 'Outstanding';
+  if (s >= 70) return 'Good';
+  if (s >= 55) return 'Decent';
   if (s >= 40) return 'Needs Work';
   return 'Poor';
 }
 
-function blurLabel(v: number) {
-  if (v >= 200) return 'Sharp';
-  if (v >= 100) return 'Slightly soft';
-  if (v >= 50)  return 'Blurry';
-  return 'Very blurry';
-}
-
-function brightnessLabel(v: number) {
-  if (v > 200) return 'Overexposed';
-  if (v > 160) return 'Slightly bright';
-  if (v > 60)  return 'Well exposed';
-  if (v > 30)  return 'Slightly dark';
-  return 'Underexposed';
-}
-
-function noiseLabel(v: number) {
-  if (v < 3)  return 'Clean';
-  if (v < 6)  return 'Slight noise';
-  if (v < 10) return 'Noisy';
-  return 'Very noisy';
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={s.section}>
+      <Text style={s.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
 }
 
 function IssueRow({ issue }: { issue: CritiqueIssue }) {
-  const color = SEV_COLOR[issue.sev] ?? '#888';
-  const dot = issue.sev === 'none' ? '✓' : '●';
+  const color = SEV_COLOR[issue.sev] ?? '#9e96a4';
   return (
     <View style={s.issueRow}>
-      <Text style={[s.issueDot, { color }]}>{dot}</Text>
+      <View style={[s.sevDot, { backgroundColor: color }]} />
       <Text style={s.issueMsg}>{issue.msg}</Text>
+    </View>
+  );
+}
+
+function GoodRow({ text }: { text: string }) {
+  return (
+    <View style={s.issueRow}>
+      <Text style={s.checkMark}>✓</Text>
+      <Text style={s.issueMsg}>{text}</Text>
     </View>
   );
 }
@@ -118,9 +118,10 @@ export default function PhotoViewerScreen({
 
           {result && (
             <>
+              {/* Score header */}
               <View style={s.scoreRow}>
                 <View>
-                  <Text style={s.scoreLbl}>Photo Score</Text>
+                  <Text style={s.scoreLbl}>Overall Score</Text>
                   <Text style={[s.scoreRating, { color: scoreColor(result.score) }]}>
                     {scoreLabel(result.score)}
                   </Text>
@@ -130,31 +131,52 @@ export default function PhotoViewerScreen({
                   <Text style={s.scoreOf}>/100</Text>
                 </Text>
               </View>
-
               <View style={s.barBg}>
-                <View style={[s.barFill, {
-                  width: `${result.score}%` as any,
-                  backgroundColor: scoreColor(result.score),
-                }]} />
-              </View>
-
-              <View style={s.metrics}>
-                <View style={s.metric}>
-                  <Text style={s.metricLbl}>Focus</Text>
-                  <Text style={s.metricVal}>{blurLabel(result.blur_score)}</Text>
-                </View>
-                <View style={s.metric}>
-                  <Text style={s.metricLbl}>Exposure</Text>
-                  <Text style={s.metricVal}>{brightnessLabel(result.brightness)}</Text>
-                </View>
-                <View style={s.metric}>
-                  <Text style={s.metricLbl}>Noise</Text>
-                  <Text style={s.metricVal}>{noiseLabel(result.noise)}</Text>
-                </View>
+                <View style={[s.barFill, { width: `${result.score}%` as any, backgroundColor: scoreColor(result.score) }]} />
               </View>
 
               <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
-                {result.issues.map((issue, i) => <IssueRow key={i} issue={issue} />)}
+
+                {/* 1. Interpretation */}
+                <Section title={`${MOOD_EMOJI[result.mood] ?? '🎨'} Interpretation`}>
+                  <Text style={s.descText}>{result.mood_desc}</Text>
+                  <Text style={s.descText}>{result.composition_feel}</Text>
+                  <Text style={s.metaLine}>
+                    {result.orientation.charAt(0).toUpperCase() + result.orientation.slice(1)} · {result.aspect_ratio}
+                  </Text>
+                </Section>
+
+                {/* 2. Technical */}
+                {result.technical.length > 0 && (
+                  <Section title="🔧 Technical">
+                    {result.technical.map((i, idx) => <IssueRow key={idx} issue={i} />)}
+                  </Section>
+                )}
+
+                {/* 3. Artistic */}
+                {result.artistic.length > 0 && (
+                  <Section title="🎭 Artistic">
+                    {result.artistic.map((i, idx) => <IssueRow key={idx} issue={i} />)}
+                  </Section>
+                )}
+
+                {/* 4. Good Points */}
+                <Section title="✨ What Works">
+                  {result.good_points.map((p, idx) => <GoodRow key={idx} text={p} />)}
+                </Section>
+
+                {/* 5. Improvements */}
+                {result.improvements.length > 0 && (
+                  <Section title="📈 Points to Improve">
+                    {result.improvements.map((i, idx) => <IssueRow key={idx} issue={i} />)}
+                  </Section>
+                )}
+
+                {/* 6. Overall */}
+                <Section title="📷 Overall">
+                  <Text style={s.descText}>{result.overall}</Text>
+                </Section>
+
               </ScrollView>
             </>
           )}
@@ -204,17 +226,20 @@ const s = StyleSheet.create({
   scoreNum:     { fontSize: 40, fontWeight: '800' },
   scoreOf:      { fontSize: 16, fontWeight: '400', color: '#6b6070' },
 
-  metrics:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  metric:       { flex: 1, backgroundColor: '#2a2030', borderRadius: 10, padding: 10, marginHorizontal: 3, alignItems: 'center' },
-  metricLbl:    { color: '#9e96a4', fontSize: 11, fontWeight: '600', marginBottom: 4 },
-  metricVal:    { color: '#e8e0ee', fontSize: 12, fontWeight: '700', textAlign: 'center' },
 
   barBg:        { height: 6, borderRadius: 3, backgroundColor: '#2a2030', marginBottom: 22, overflow: 'hidden' },
   barFill:      { height: 6, borderRadius: 3 },
 
   list:         { flex: 1 },
-  issueRow:     { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14, gap: 10 },
-  issueDot:     { fontSize: 13, marginTop: 3, width: 16, textAlign: 'center' },
+
+  section:      { marginBottom: 20 },
+  sectionTitle: { color: '#fff', fontSize: 13, fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 },
+  descText:     { color: '#c0b8cc', fontSize: 14, lineHeight: 21, marginBottom: 6 },
+  metaLine:     { color: '#6b6070', fontSize: 12, marginTop: 2 },
+
+  issueRow:     { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
+  sevDot:       { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
+  checkMark:    { color: '#22c55e', fontSize: 14, marginTop: 1, width: 16, textAlign: 'center' },
   issueMsg:     { color: '#e8e0ee', fontSize: 14, lineHeight: 21, flex: 1 },
 
   closeSheet:   {

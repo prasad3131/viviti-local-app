@@ -7,7 +7,6 @@ export interface Photo {
 }
 
 export interface CritiqueIssue {
-  type: string;
   sev: 'high' | 'medium' | 'low' | 'none';
   msg: string;
 }
@@ -17,6 +16,16 @@ export interface CritiqueResult {
   blur_score: number;
   brightness: number;
   noise: number;
+  orientation: string;
+  aspect_ratio: string;
+  mood: string;
+  mood_desc: string;
+  composition_feel: string;
+  technical: CritiqueIssue[];
+  artistic: CritiqueIssue[];
+  good_points: string[];
+  improvements: CritiqueIssue[];
+  overall: string;
   issues: CritiqueIssue[];
   error?: string;
 }
@@ -182,6 +191,44 @@ export async function getTaggedPhotos(
   if (!res.ok) return [];
   const { photos } = await res.json();
   return photos ?? [];
+}
+
+export interface FaceCluster { id: number; name: string | null; sample_thumb: string | null; photo_count: number; }
+export interface FacePhoto { photo_path: string; folder: string; name: string; }
+
+export async function getFaces(): Promise<FaceCluster[]> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(`${base}/ai/faces`, 8000);
+  if (!res.ok) return [];
+  const { faces } = await res.json();
+  return faces ?? [];
+}
+
+export async function setFaceName(id: number, name: string): Promise<void> {
+  const base = await deviceBase();
+  await fetchWithTimeout(`${base}/ai/faces/${id}`, 5000, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function getFacePhotos(id: number): Promise<FacePhoto[]> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(`${base}/ai/faces/${id}/photos`, 8000);
+  if (!res.ok) return [];
+  const { photos } = await res.json();
+  return photos ?? [];
+}
+
+export async function faceThumbnailUrl(filename: string): Promise<string> {
+  const base = await deviceBase();
+  return `${base}/ai/faces/thumb/${encodeURIComponent(filename)}`;
+}
+
+export async function triggerFaceBatch(): Promise<void> {
+  const base = await deviceBase();
+  await fetchWithTimeout(`${base}/ai/faces/run`, 5000, { method: 'POST' });
 }
 
 export async function critiquePhoto(

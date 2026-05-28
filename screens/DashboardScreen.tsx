@@ -15,10 +15,12 @@ export default function DashboardScreen({
   session,
   onLogout,
   onOpenPhotos,
+  onOpenPeople,
 }: {
   session: Session;
   onLogout: () => void;
   onOpenPhotos: () => void;
+  onOpenPeople: () => void;
 }) {
   const [status, setStatus] = useState<any>(null);
   const [error, setError] = useState('');
@@ -87,6 +89,9 @@ export default function DashboardScreen({
           <TouchableOpacity style={styles.btn} onPress={onOpenPhotos}>
             <Text style={styles.btnText}>Browse Photos</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={onOpenPeople}>
+            <Text style={styles.btnSecondaryText}>👤 People</Text>
+          </TouchableOpacity>
         </>
       )}
     </ScrollView>
@@ -113,6 +118,8 @@ const styles = StyleSheet.create({
   storageText: { fontSize: 13, color: '#6b6070' },
   btn: { backgroundColor: '#257af0', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  btnSecondary: { backgroundColor: '#f5f3f7', borderWidth: 1, borderColor: '#e0dbe2' },
+  btnSecondaryText: { color: '#1a1118', fontSize: 16, fontWeight: '700' },
   errorBox: { backgroundColor: '#fff1f2', borderRadius: 10, padding: 16, marginTop: 16 },
   errorText: { color: '#f43f5e', fontSize: 14 },
 });
