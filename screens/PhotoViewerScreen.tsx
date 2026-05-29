@@ -71,6 +71,7 @@ export default function PhotoViewerScreen({
   photoName: string;
   onBack: () => void;
 }) {
+  const [menuVisible, setMenuVisible]     = useState(false);
   const [critiquing, setCritiquing]       = useState(false);
   const [result, setResult]               = useState<CritiqueResult | null>(null);
   const [sheetVisible, setSheetVisible]   = useState(false);
@@ -83,6 +84,7 @@ export default function PhotoViewerScreen({
   const [renaming, setRenaming]           = useState(false);
 
   async function onCritique() {
+    setMenuVisible(false);
     setCritiquing(true);
     try {
       const r = await critiquePhoto(folderPath, photoName);
@@ -100,6 +102,7 @@ export default function PhotoViewerScreen({
   }
 
   async function onDetectFaces() {
+    setMenuVisible(false);
     setFaceDetecting(true);
     try {
       const rawFaces = await detectPhotoFaces(folderPath, photoName);
@@ -151,19 +154,32 @@ export default function PhotoViewerScreen({
         <Text style={s.closeText}>✕</Text>
       </TouchableOpacity>
 
-      {/* Bottom action buttons */}
-      <View style={s.buttonRow}>
-        <TouchableOpacity style={s.facesBtn} onPress={onDetectFaces} disabled={busy}>
-          {faceDetecting
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={s.facesBtnTxt}>👤 Faces</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity style={s.critiqueBtn} onPress={onCritique} disabled={busy}>
-          {critiquing
-            ? <ActivityIndicator color="#fff" size="small" />
-            : <Text style={s.critiqueTxt}>⭐ Critique</Text>}
-        </TouchableOpacity>
-      </View>
+      {/* Three-dots menu button */}
+      <TouchableOpacity style={s.menuBtn} onPress={() => setMenuVisible(v => !v)} disabled={busy}>
+        {busy
+          ? <ActivityIndicator color="#fff" size="small" />
+          : <Text style={s.menuDots}>⋮</Text>}
+      </TouchableOpacity>
+
+      {/* Tap-away backdrop to close menu */}
+      {menuVisible && (
+        <TouchableOpacity style={s.menuBackdrop} activeOpacity={1} onPress={() => setMenuVisible(false)} />
+      )}
+
+      {/* Dropdown menu */}
+      {menuVisible && (
+        <View style={s.dropdown}>
+          <TouchableOpacity style={s.dropdownItem} onPress={onDetectFaces}>
+            <Text style={s.dropdownIcon}>👤</Text>
+            <Text style={s.dropdownLabel}>Face Detection</Text>
+          </TouchableOpacity>
+          <View style={s.dropdownDivider} />
+          <TouchableOpacity style={s.dropdownItem} onPress={onCritique}>
+            <Text style={s.dropdownIcon}>⭐</Text>
+            <Text style={s.dropdownLabel}>Critique</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ── Critique Sheet ── */}
       <Modal
@@ -341,22 +357,28 @@ const s = StyleSheet.create({
   },
   closeText: { color: '#fff', fontSize: 16 },
 
-  buttonRow: {
-    position: 'absolute', bottom: 52, alignSelf: 'center',
-    flexDirection: 'row', gap: 12,
+  menuBtn: {
+    position: 'absolute', top: 48, left: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
+    width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
   },
-  facesBtn: {
-    backgroundColor: 'rgba(100,40,180,0.90)', borderRadius: 24,
-    paddingHorizontal: 22, paddingVertical: 13,
-    minWidth: 110, justifyContent: 'center', alignItems: 'center',
+  menuDots: { color: '#fff', fontSize: 20, lineHeight: 22, fontWeight: '700' },
+
+  menuBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+
+  dropdown: {
+    position: 'absolute', top: 92, left: 20,
+    backgroundColor: 'rgba(20,14,26,0.96)', borderRadius: 14,
+    overflow: 'hidden', minWidth: 190,
+    shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, elevation: 10,
   },
-  facesBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  critiqueBtn: {
-    backgroundColor: 'rgba(37,122,240,0.92)', borderRadius: 24,
-    paddingHorizontal: 22, paddingVertical: 13,
-    minWidth: 120, justifyContent: 'center', alignItems: 'center',
+  dropdownItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 14, gap: 12,
   },
-  critiqueTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  dropdownIcon:    { fontSize: 18 },
+  dropdownLabel:   { color: '#e8e0ee', fontSize: 15, fontWeight: '600' },
+  dropdownDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginHorizontal: 12 },
 
   overlay: { flex: 1 },
   sheet: {
