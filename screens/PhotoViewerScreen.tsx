@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, TouchableOpacity, Text, StyleSheet,
   Dimensions, StatusBar, Modal, ScrollView, ActivityIndicator,
-  Alert, TextInput, Image,
+  Alert, TextInput, Image, BackHandler,
 } from 'react-native';
 import SmartImage from '../components/SmartImage';
 import {
@@ -82,6 +82,19 @@ export default function PhotoViewerScreen({
   const [renameTarget, setRenameTarget]   = useState<FaceWithUrl | null>(null);
   const [renameText, setRenameText]       = useState('');
   const [renaming, setRenaming]           = useState(false);
+
+  // Intercept Android back gesture / hardware back — go back, don't exit app
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (menuVisible) { setMenuVisible(false); return true; }
+      if (sheetVisible) { setSheetVisible(false); return true; }
+      if (faceSheetVisible) { setFaceSheetVisible(false); return true; }
+      if (renameTarget) { setRenameTarget(null); return true; }
+      onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [menuVisible, sheetVisible, faceSheetVisible, renameTarget, onBack]);
 
   async function onCritique() {
     setMenuVisible(false);
