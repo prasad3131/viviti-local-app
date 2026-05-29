@@ -1,21 +1,58 @@
 import React, { useState } from 'react';
 import {
-  Text, TextInput, TouchableOpacity, StyleSheet,
+  Text, TextInput, TouchableOpacity, StyleSheet, View,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { checkDevice, registerUser } from '../lib/api';
 import { saveSession } from '../lib/storage';
 
+const SCAN_TIMEOUT_MS = 700;
+const SCAN_SUBNETS = ['192.168.0', '192.168.1', '192.168.2', '10.0.0', '10.0.1'];
+
+async function probeIp(ip: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SCAN_TIMEOUT_MS);
+    fetch(`http://${ip}:3000/health`, { signal: ctrl.signal })
+      .then(r => r.json())
+      .then(data => {
+        clearTimeout(timer);
+        data?.viviti === true ? resolve(ip) : reject();
+      })
+      .catch(() => { clearTimeout(timer); reject(); });
+  });
+}
+
 export default function SetupScreen({ onSetupDone }: { onSetupDone: () => void }) {
   const [ip, setIp] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+
+  async function scanForDevice() {
+    setScanning(true);
+    const probes: Promise<string>[] = [];
+    for (const subnet of SCAN_SUBNETS) {
+      for (let i = 1; i <= 254; i++) {
+        probes.push(probeIp(`${subnet}.${i}`));
+      }
+    }
+    try {
+      const found = await Promise.any(probes);
+      setIp(found);
+      Alert.alert('Device found!', `Viviti device found at ${found}`);
+    } catch {
+      Alert.alert('Not found', 'No Viviti device found on this WiFi.\n\nMake sure the device is powered on and connected to the same network.');
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function handleConnect() {
     const trimmedIp = ip.trim();
     const trimmedName = username.trim();
     if (!trimmedIp) {
-      Alert.alert('Missing IP', 'Enter the device IP address shown on the landing page.');
+      Alert.alert('Missing IP', 'Enter or scan for the device IP address.');
       return;
     }
     if (!trimmedName) {
@@ -49,16 +86,23 @@ export default function SetupScreen({ onSetupDone }: { onSetupDone: () => void }
         <Text style={styles.subtitle}>Connect to your device</Text>
 
         <Text style={styles.label}>Device IP address</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 192.168.1.213"
-          value={ip}
-          onChangeText={setIp}
-          autoCapitalize="none"
-          keyboardType="numeric"
-        />
+        <View style={styles.ipRow}>
+          <TextInput
+            style={[styles.input, styles.ipInput]}
+            placeholder="e.g. 192.168.1.213"
+            value={ip}
+            onChangeText={setIp}
+            autoCapitalize="none"
+            keyboardType="numeric"
+          />
+          <TouchableOpacity style={styles.scanBtn} onPress={scanForDevice} disabled={scanning || loading}>
+            {scanning
+              ? <ActivityIndicator color="#257af0" size="small" />
+              : <Text style={styles.scanBtnText}>Find</Text>}
+          </TouchableOpacity>
+        </View>
         <Text style={styles.hint}>
-          Visit http://&lt;device-ip&gt;:3000 in your phone browser to get the IP and create your profile.
+          Tap Find to auto-detect your Viviti device on WiFi, or enter the IP manually.
         </Text>
 
         <Text style={styles.label}>Your name</Text>
@@ -73,7 +117,7 @@ export default function SetupScreen({ onSetupDone }: { onSetupDone: () => void }
           Enter the same name you used on the device setup page.
         </Text>
 
-        <TouchableOpacity style={styles.btn} onPress={handleConnect} disabled={loading}>
+        <TouchableOpacity style={styles.btn} onPress={handleConnect} disabled={loading || scanning}>
           {loading
             ? <ActivityIndicator color="#fff" />
             : <Text style={styles.btnText}>Connect</Text>}
@@ -88,10 +132,17 @@ const styles = StyleSheet.create({
   logo: { fontSize: 36, fontWeight: '800', color: '#257af0', marginBottom: 4 },
   subtitle: { fontSize: 16, color: '#6b6070', marginBottom: 36 },
   label: { fontSize: 13, fontWeight: '600', color: '#1a1118', marginBottom: 6 },
+  ipRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   input: {
     borderWidth: 1, borderColor: '#e0dbe2', borderRadius: 10,
     padding: 12, fontSize: 15, marginBottom: 8, backgroundColor: '#fff',
   },
+  ipInput: { flex: 1, marginBottom: 0 },
+  scanBtn: {
+    borderWidth: 1.5, borderColor: '#257af0', borderRadius: 10,
+    paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', minWidth: 64,
+  },
+  scanBtnText: { color: '#257af0', fontSize: 15, fontWeight: '700' },
   hint: { fontSize: 12, color: '#9e96a4', marginBottom: 24 },
   btn: {
     backgroundColor: '#257af0', borderRadius: 10,
