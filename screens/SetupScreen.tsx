@@ -40,7 +40,8 @@ export default function SetupScreen({
   onSetupDone: () => void;
   onWifiSetup: (ip: string) => void;
 }) {
-  const [ip, setIp]           = useState('');
+  const [ip, setIp]             = useState('');
+  const [deviceKey, setDeviceKey] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading]   = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -74,10 +75,15 @@ export default function SetupScreen({
   }
 
   async function handleConnect() {
-    const trimmedIp   = ip.trim();
+    const trimmedIp  = ip.trim();
+    const trimmedKey = deviceKey.trim().toUpperCase();
     const trimmedName = username.trim();
     if (!trimmedIp) {
       Alert.alert('Missing IP', 'Enter or scan for the device IP address.');
+      return;
+    }
+    if (!trimmedKey) {
+      Alert.alert('Missing device code', 'Enter the device code shown on the Viviti landing page.');
       return;
     }
     if (!trimmedName) {
@@ -91,11 +97,11 @@ export default function SetupScreen({
         Alert.alert('Cannot reach device', `Could not connect to http://${trimmedIp}:3000\n\nMake sure your phone and device are on the same WiFi.`);
         return;
       }
-      const resolvedName = await registerUser(trimmedIp, trimmedName);
-      await saveSession({ deviceIp: trimmedIp, deviceName: 'Viviti Local', username: resolvedName });
+      const resolvedName = await registerUser(trimmedIp, trimmedName, trimmedKey);
+      await saveSession({ deviceIp: trimmedIp, deviceName: 'Viviti Local', username: resolvedName, deviceKey: trimmedKey });
       onSetupDone();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Connection failed.');
+      Alert.alert('Error', err.message || 'Connection failed. Check the device code and try again.');
     } finally {
       setLoading(false);
     }
@@ -125,6 +131,19 @@ export default function SetupScreen({
         </View>
         <Text style={styles.hint}>
           Tap Find to auto-detect your Viviti device on WiFi, or enter the IP manually.
+        </Text>
+
+        <Text style={styles.label}>Device code</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. A1B2-C3D4"
+          value={deviceKey}
+          onChangeText={t => setDeviceKey(t.toUpperCase())}
+          autoCapitalize="characters"
+          autoCorrect={false}
+        />
+        <Text style={styles.hint}>
+          Open http://&lt;device-ip&gt;:3000 in your browser — the code is shown at the top.
         </Text>
 
         <Text style={styles.label}>Your name</Text>

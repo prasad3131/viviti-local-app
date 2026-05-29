@@ -55,10 +55,20 @@ function fetchWithTimeout(url: string, ms: number, options?: RequestInit): Promi
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-export async function registerUser(ip: string, name: string): Promise<string> {
+// Authenticated fetch — automatically injects X-Viviti-Key from the saved session
+async function deviceFetch(url: string, ms: number, options?: RequestInit): Promise<Response> {
+  const s = await loadSession();
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string> || {}),
+    ...(s?.deviceKey ? { 'X-Viviti-Key': s.deviceKey } : {}),
+  };
+  return fetchWithTimeout(url, ms, { ...options, headers });
+}
+
+export async function registerUser(ip: string, name: string, deviceKey: string): Promise<string> {
   const res = await fetchWithTimeout(`http://${ip}:3000/users/register`, 5000, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Viviti-Key': deviceKey },
     body: JSON.stringify({ name }),
   });
   const data = await res.json();
@@ -77,7 +87,7 @@ export async function checkDevice(ip: string): Promise<boolean> {
 
 export async function getDeviceStatus() {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/status`, 5000);
+  const res = await deviceFetch(`${base}/status`, 5000);
   if (!res.ok) throw new Error('Device not reachable');
   return res.json();
 }
@@ -96,7 +106,7 @@ export async function createFolder(
   parentPath: string, name: string,
 ): Promise<{ ok?: boolean; error?: string }> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/photos/folders`, 5000, {
+  const res = await deviceFetch(`${base}/photos/folders`, 5000, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path: parentPath, name }),
@@ -154,7 +164,7 @@ export async function movePhotos(
 ): Promise<void> {
   const base = await deviceBase();
   for (const name of names) {
-    const res = await fetchWithTimeout(`${base}/photos/move`, 15000, {
+    const res = await deviceFetch(`${base}/photos/move`, 15000, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from_path: fromPath, from_name: name, to_path: toPath }),
@@ -165,7 +175,7 @@ export async function movePhotos(
 
 export async function deleteFolder(folderPath: string): Promise<void> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/photos/folders`, 10000, {
+  const res = await deviceFetch(`${base}/photos/folders`, 10000, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path: folderPath }),
@@ -178,7 +188,7 @@ export async function deleteFolder(folderPath: string): Promise<void> {
 
 export async function deletePhotos(folderPath: string, names: string[]): Promise<void> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/photos/files`, 10000, {
+  const res = await deviceFetch(`${base}/photos/files`, 10000, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path: folderPath, names }),
@@ -216,7 +226,7 @@ export interface FacePhoto { photo_path: string; folder: string; name: string; }
 
 export async function getFaces(): Promise<FaceCluster[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/ai/faces`, 8000);
+  const res = await deviceFetch(`${base}/ai/faces`, 8000);
   if (!res.ok) return [];
   const { faces } = await res.json();
   return faces ?? [];
@@ -224,7 +234,7 @@ export async function getFaces(): Promise<FaceCluster[]> {
 
 export async function setFaceName(id: number, name: string): Promise<void> {
   const base = await deviceBase();
-  await fetchWithTimeout(`${base}/ai/faces/${id}`, 5000, {
+  await deviceFetch(`${base}/ai/faces/${id}`, 5000, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
@@ -233,7 +243,7 @@ export async function setFaceName(id: number, name: string): Promise<void> {
 
 export async function getFacePhotos(id: number): Promise<FacePhoto[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/ai/faces/${id}/photos`, 8000);
+  const res = await deviceFetch(`${base}/ai/faces/${id}/photos`, 8000);
   if (!res.ok) return [];
   const { photos } = await res.json();
   return photos ?? [];
@@ -246,7 +256,7 @@ export async function faceThumbnailUrl(filename: string): Promise<string> {
 
 export async function triggerFaceBatch(): Promise<void> {
   const base = await deviceBase();
-  await fetchWithTimeout(`${base}/ai/faces/run`, 5000, { method: 'POST' });
+  await deviceFetch(`${base}/ai/faces/run`, 5000, { method: 'POST' });
 }
 
 export interface DetectedFace {
@@ -267,7 +277,7 @@ export async function getPhotoExif(folderPath: string, name: string): Promise<Ph
 
 export async function getAlbums(): Promise<Album[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/ai/albums`, 10000);
+  const res = await deviceFetch(`${base}/ai/albums`, 10000);
   if (!res.ok) return [];
   const { albums } = await res.json();
   return albums ?? [];
@@ -275,7 +285,7 @@ export async function getAlbums(): Promise<Album[]> {
 
 export async function getAlbumPhotos(key: string): Promise<AlbumPhoto[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/ai/albums/${encodeURIComponent(key)}/photos`, 10000);
+  const res = await deviceFetch(`${base}/ai/albums/${encodeURIComponent(key)}/photos`, 10000);
   if (!res.ok) return [];
   const { photos } = await res.json();
   return photos ?? [];
@@ -283,7 +293,7 @@ export async function getAlbumPhotos(key: string): Promise<AlbumPhoto[]> {
 
 export async function getHighlights(): Promise<Highlight[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/ai/highlights`, 15000);
+  const res = await deviceFetch(`${base}/ai/highlights`, 15000);
   if (!res.ok) return [];
   const { highlights } = await res.json();
   return highlights ?? [];
@@ -293,7 +303,7 @@ export async function detectPhotoFaces(
   folderPath: string, name: string,
 ): Promise<DetectedFace[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/ai/faces/detect-photo`, 30000, {
+  const res = await deviceFetch(`${base}/ai/faces/detect-photo`, 30000, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path: folderPath, name }),
@@ -336,7 +346,7 @@ export async function critiquePhoto(
   name: string,
 ): Promise<CritiqueResult> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(`${base}/ai/critique`, 20000, {
+  const res = await deviceFetch(`${base}/ai/critique`, 20000, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path: folderPath, name }),

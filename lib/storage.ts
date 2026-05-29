@@ -6,6 +6,7 @@ export interface Session {
   deviceIp: string;
   deviceName: string;
   username: string;
+  deviceKey: string;
 }
 
 export async function saveSession(s: Session) {
