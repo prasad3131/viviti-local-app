@@ -10,6 +10,7 @@ import {
   getFolders, getPhotos, uploadPhotos, deletePhotos,
   movePhotos, createFolder, deleteFolder, Photo,
   getAiTags, getTaggedPhotos, AiTag, TaggedPhoto,
+  triggerFaceBatch,
 } from '../lib/api';
 
 const TAG_EMOJI: Record<string, string> = {
@@ -171,6 +172,18 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
       next.has(name) ? next.delete(name) : next.add(name);
       return next;
     });
+  }
+
+  // ── Scan faces for selected photos ────────────────────────────────────────
+
+  async function handleScanFaces() {
+    try {
+      await triggerFaceBatch();
+      setSelected(new Set());
+      Alert.alert('Face Scan Started', 'Running face detection in the background. Check the People screen when done.');
+    } catch {
+      Alert.alert('Error', 'Could not start face scan.');
+    }
   }
 
   // ── Folder delete ──────────────────────────────────────────────────────────
@@ -351,6 +364,9 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
 
         {selecting ? (
           <View style={styles.selectionActions}>
+            <TouchableOpacity style={styles.scanBtn} onPress={handleScanFaces}>
+              <Text style={styles.scanBtnText}>👤 Scan</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.moveBtn} onPress={openCopyPicker}>
               <Text style={styles.moveBtnText}>Move ({selected.size})</Text>
             </TouchableOpacity>
@@ -588,6 +604,8 @@ const styles = StyleSheet.create({
   pillActive: { backgroundColor: '#257af0', borderColor: '#257af0' },
   pillText: { fontSize: 13, color: '#257af0', fontWeight: '600' },
   pillActiveText: { color: '#fff' },
+  scanBtn: { backgroundColor: '#f5f0ff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#a855f7' },
+  scanBtnText: { color: '#a855f7', fontWeight: '700', fontSize: 13 },
   moveBtn: { backgroundColor: '#257af0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6 },
   moveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   deleteBtn: { backgroundColor: '#fff1f2', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, borderColor: '#f43f5e' },

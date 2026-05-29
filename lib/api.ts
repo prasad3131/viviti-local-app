@@ -231,6 +231,27 @@ export async function triggerFaceBatch(): Promise<void> {
   await fetchWithTimeout(`${base}/ai/faces/run`, 5000, { method: 'POST' });
 }
 
+export interface DetectedFace {
+  x: number; y: number; w: number; h: number;
+  cluster_id: number;
+  cluster_name: string | null;
+  thumb_filename: string | null;
+}
+
+export async function detectPhotoFaces(
+  folderPath: string, name: string,
+): Promise<DetectedFace[]> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(`${base}/ai/faces/detect-photo`, 30000, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: folderPath, name }),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.faces ?? [];
+}
+
 export async function critiquePhoto(
   folderPath: string,
   name: string,
