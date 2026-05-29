@@ -490,7 +490,7 @@ const s = StyleSheet.create({
   scoreOf:     { fontSize: 16, fontWeight: '400', color: '#6b6070' },
   barBg:       { height: 6, borderRadius: 3, backgroundColor: '#2a2030', marginBottom: 22, overflow: 'hidden' },
   barFill:     { height: 6, borderRadius: 3 },
-  list:        { flex: 1 },
+  list:        { maxHeight: height * 0.42 },
 
   section:      { marginBottom: 20 },
   sectionTitle: { color: '#fff', fontSize: 13, fontWeight: '700', letterSpacing: 0.5, marginBottom: 10 },
