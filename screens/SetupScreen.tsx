@@ -40,11 +40,12 @@ export default function SetupScreen({
   onSetupDone: () => void;
   onWifiSetup: (ip: string) => void;
 }) {
-  const [ip, setIp]             = useState('');
+  const [ip, setIp]               = useState('');
   const [deviceKey, setDeviceKey] = useState('');
-  const [username, setUsername] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [scanning, setScanning] = useState(false);
+  const [username, setUsername]   = useState('');
+  const [email, setEmail]         = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [scanning, setScanning]   = useState(false);
 
   async function scanForDevice() {
     setScanning(true);
@@ -99,6 +100,17 @@ export default function SetupScreen({
       }
       const resolvedName = await registerUser(trimmedIp, trimmedName, trimmedKey);
       await saveSession({ deviceIp: trimmedIp, deviceName: 'Viviti Local', username: resolvedName, deviceKey: trimmedKey });
+
+      // Register with cloud for heartbeat monitoring (optional — fails silently)
+      const trimmedEmail = email.trim().toLowerCase();
+      if (trimmedEmail) {
+        fetch('https://vivitionline.com/api/devices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: trimmedKey, name: 'Viviti Local', owner_email: trimmedEmail }),
+        }).catch(() => {});
+      }
+
       onSetupDone();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Connection failed. Check the device code and try again.');
@@ -158,6 +170,20 @@ export default function SetupScreen({
           Enter the same name you used on the device setup page.
         </Text>
 
+        <Text style={styles.label}>Your email <Text style={styles.optional}>(optional)</Text></Text>
+        <TextInput
+          style={styles.input}
+          placeholder="you@example.com"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          autoCorrect={false}
+        />
+        <Text style={styles.hint}>
+          Get email alerts if your device goes offline or storage is running low.
+        </Text>
+
         <TouchableOpacity style={styles.btn} onPress={handleConnect} disabled={loading || scanning}>
           {loading
             ? <ActivityIndicator color="#fff" />
@@ -185,6 +211,7 @@ const styles = StyleSheet.create({
   },
   scanBtnText: { color: '#257af0', fontSize: 15, fontWeight: '700' },
   hint: { fontSize: 12, color: '#9e96a4', marginBottom: 24 },
+  optional: { fontSize: 12, color: '#9e96a4', fontWeight: '400' },
   btn: {
     backgroundColor: '#257af0', borderRadius: 10,
     padding: 14, alignItems: 'center', marginTop: 8,
