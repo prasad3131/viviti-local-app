@@ -4,7 +4,20 @@ export interface Photo {
   name: string;
   size: number;
   modified: string;
+  isVideo?: boolean;
 }
+
+export interface PhotoExif {
+  width: number; height: number; file_size: number;
+  date_taken: string | null; camera_make: string | null; camera_model: string | null;
+  focal_length: number | null; f_number: number | null; iso: number | null;
+  exposure_time: string | null; gps_lat: number | null; gps_lon: number | null;
+  error?: string;
+}
+
+export interface Album { key: string; cover: string; count: number; }
+export interface AlbumPhoto { photo_path: string; folder: string; name: string; }
+export interface Highlight { photo_path: string; folder: string; name: string; }
 
 export interface CritiqueIssue {
   sev: 'high' | 'medium' | 'low' | 'none';
@@ -103,6 +116,11 @@ export async function getPhotos(
 }
 
 export async function photoUrl(folderPath: string, name: string): Promise<string> {
+  const base = await deviceBase();
+  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}`;
+}
+
+export async function videoUrl(folderPath: string, name: string): Promise<string> {
   const base = await deviceBase();
   return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}`;
 }
@@ -236,6 +254,39 @@ export interface DetectedFace {
   cluster_id: number;
   cluster_name: string | null;
   thumb_filename: string | null;
+}
+
+export async function getPhotoExif(folderPath: string, name: string): Promise<PhotoExif> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(
+    `${base}/photos/exif?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}`, 10000,
+  );
+  if (!res.ok) throw new Error('EXIF fetch failed');
+  return res.json();
+}
+
+export async function getAlbums(): Promise<Album[]> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(`${base}/ai/albums`, 10000);
+  if (!res.ok) return [];
+  const { albums } = await res.json();
+  return albums ?? [];
+}
+
+export async function getAlbumPhotos(key: string): Promise<AlbumPhoto[]> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(`${base}/ai/albums/${encodeURIComponent(key)}/photos`, 10000);
+  if (!res.ok) return [];
+  const { photos } = await res.json();
+  return photos ?? [];
+}
+
+export async function getHighlights(): Promise<Highlight[]> {
+  const base = await deviceBase();
+  const res = await fetchWithTimeout(`${base}/ai/highlights`, 15000);
+  if (!res.ok) return [];
+  const { highlights } = await res.json();
+  return highlights ?? [];
 }
 
 export async function detectPhotoFaces(

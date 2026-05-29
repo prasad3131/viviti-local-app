@@ -10,8 +10,9 @@ import {
   getFolders, getPhotos, uploadPhotos, deletePhotos,
   movePhotos, createFolder, deleteFolder, Photo,
   getAiTags, getTaggedPhotos, AiTag, TaggedPhoto,
-  triggerFaceBatch,
+  triggerFaceBatch, videoUrl,
 } from '../lib/api';
+import { Linking } from 'react-native';
 
 const TAG_EMOJI: Record<string, string> = {
   beach: '🏖', food: '🍕', pets: '🐶', landscape: '🏔',
@@ -172,6 +173,17 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
       next.has(name) ? next.delete(name) : next.add(name);
       return next;
     });
+  }
+
+  // ── Video open ────────────────────────────────────────────────────────────
+
+  async function handleVideoPress(folderPath: string, name: string) {
+    try {
+      const url = await videoUrl(folderPath, name);
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Error', 'Could not open video.');
+    }
   }
 
   // ── Scan faces for selected photos ────────────────────────────────────────
@@ -491,11 +503,22 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
             const isSelected = selected.has(item.name);
             return (
               <TouchableOpacity
-                onPress={() => selecting ? toggleSelect(item.name) : onOpenPhoto(currentPath, item.name)}
+                onPress={() => {
+                  if (selecting) return toggleSelect(item.name);
+                  if (item.isVideo) return handleVideoPress(currentPath, item.name);
+                  onOpenPhoto(currentPath, item.name);
+                }}
                 onLongPress={() => toggleSelect(item.name)}
                 activeOpacity={0.8}
               >
-                <SmartImage folderPath={currentPath} photoName={item.name} style={styles.thumb} thumb />
+                {item.isVideo ? (
+                  <View style={[styles.thumb, styles.videoThumb]}>
+                    <Text style={styles.videoPlay}>▶</Text>
+                    <Text style={styles.videoLabel} numberOfLines={1}>{item.name}</Text>
+                  </View>
+                ) : (
+                  <SmartImage folderPath={currentPath} photoName={item.name} style={styles.thumb} thumb />
+                )}
                 {isSelected && (
                   <View style={styles.checkOverlay}>
                     <Text style={styles.check}>✓</Text>
@@ -640,6 +663,9 @@ const styles = StyleSheet.create({
 
   // Photo grid
   thumb: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderWidth: 0.5, borderColor: '#fefcfe' },
+  videoThumb: { backgroundColor: '#1a1118', justifyContent: 'center', alignItems: 'center' },
+  videoPlay:  { fontSize: 28, color: '#fff', opacity: 0.9 },
+  videoLabel: { position: 'absolute', bottom: 4, left: 4, right: 4, color: '#ccc', fontSize: 9, textAlign: 'center' },
   checkOverlay: {
     position: 'absolute', top: 0, left: 0, width: PHOTO_SIZE, height: PHOTO_SIZE,
     backgroundColor: 'rgba(37,122,240,0.5)', justifyContent: 'center', alignItems: 'center',

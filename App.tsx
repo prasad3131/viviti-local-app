@@ -6,9 +6,17 @@ import BrowserScreen from './screens/BrowserScreen';
 import PhotoViewerScreen from './screens/PhotoViewerScreen';
 import FacesScreen from './screens/FacesScreen';
 import FacePhotosScreen from './screens/FacePhotosScreen';
-import { FaceCluster } from './lib/api';
+import AlbumsScreen from './screens/AlbumsScreen';
+import AlbumPhotosScreen from './screens/AlbumPhotosScreen';
+import HighlightsScreen from './screens/HighlightsScreen';
+import { FaceCluster, Album } from './lib/api';
 
-type Screen = 'loading' | 'setup' | 'dashboard' | 'browser' | 'viewer' | 'faces' | 'face-photos';
+type Screen =
+  | 'loading' | 'setup' | 'dashboard'
+  | 'browser' | 'viewer'
+  | 'faces' | 'face-photos'
+  | 'albums' | 'album-photos'
+  | 'highlights';
 
 export default function App() {
   const [screen, setScreen]               = useState<Screen>('loading');
@@ -16,6 +24,7 @@ export default function App() {
   const [currentFolderPath, setCurrentFolderPath] = useState('');
   const [currentPhoto, setCurrentPhoto]   = useState('');
   const [currentFace, setCurrentFace]     = useState<FaceCluster | null>(null);
+  const [currentAlbum, setCurrentAlbum]   = useState<Album | null>(null);
   const [prevScreen, setPrevScreen]       = useState<Screen>('dashboard');
 
   useEffect(() => {
@@ -68,6 +77,34 @@ export default function App() {
     );
   }
 
+  if (screen === 'album-photos' && currentAlbum) {
+    return (
+      <AlbumPhotosScreen
+        album={currentAlbum}
+        onBack={() => setScreen('albums')}
+        onOpenPhoto={(folder, name) => openPhoto(folder, name, 'album-photos')}
+      />
+    );
+  }
+
+  if (screen === 'albums') {
+    return (
+      <AlbumsScreen
+        onBack={() => setScreen('dashboard')}
+        onOpenAlbum={album => { setCurrentAlbum(album); setScreen('album-photos'); }}
+      />
+    );
+  }
+
+  if (screen === 'highlights') {
+    return (
+      <HighlightsScreen
+        onBack={() => setScreen('dashboard')}
+        onOpenPhoto={(folder, name) => openPhoto(folder, name, 'highlights')}
+      />
+    );
+  }
+
   if (screen === 'browser') {
     return (
       <BrowserScreen
@@ -84,6 +121,8 @@ export default function App() {
       onLogout={async () => { setSession(null); setScreen('setup'); }}
       onOpenPhotos={() => setScreen('browser')}
       onOpenPeople={() => setScreen('faces')}
+      onOpenAlbums={() => setScreen('albums')}
+      onOpenHighlights={() => setScreen('highlights')}
     />
   );
 }

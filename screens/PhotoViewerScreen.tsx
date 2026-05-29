@@ -8,7 +8,9 @@ import SmartImage from '../components/SmartImage';
 import {
   critiquePhoto, CritiqueResult, CritiqueIssue,
   detectPhotoFaces, DetectedFace, setFaceName, faceThumbnailUrl,
+  getPhotoExif, PhotoExif,
 } from '../lib/api';
+import { Linking } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -62,6 +64,28 @@ function GoodRow({ text }: { text: string }) {
   );
 }
 
+function formatBytes(b: number) {
+  if (b >= 1e6) return (b / 1e6).toFixed(1) + ' MB';
+  return (b / 1e3).toFixed(0) + ' KB';
+}
+
+function formatExifDate(d: string) {
+  const norm = d.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+  const dt = new Date(norm);
+  if (isNaN(dt.getTime())) return d;
+  return dt.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <View style={s.infoRow}>
+      <Text style={s.infoIcon}>{icon}</Text>
+      <Text style={s.infoLabel}>{label}</Text>
+      <Text style={s.infoValue} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
 type FaceWithUrl = DetectedFace & { thumbUrl: string | null };
 
 export default function PhotoViewerScreen({
@@ -83,10 +107,15 @@ export default function PhotoViewerScreen({
   const [renameText, setRenameText]       = useState('');
   const [renaming, setRenaming]           = useState(false);
 
+  const [infoLoading, setInfoLoading]     = useState(false);
+  const [exif, setExif]                   = useState<PhotoExif | null>(null);
+  const [infoVisible, setInfoVisible]     = useState(false);
+
   // Intercept Android back gesture / hardware back — go back, don't exit app
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (menuVisible) { setMenuVisible(false); return true; }
+      if (infoVisible) { setInfoVisible(false); return true; }
       if (sheetVisible) { setSheetVisible(false); return true; }
       if (faceSheetVisible) { setFaceSheetVisible(false); return true; }
       if (renameTarget) { setRenameTarget(null); return true; }
@@ -94,7 +123,7 @@ export default function PhotoViewerScreen({
       return true;
     });
     return () => sub.remove();
-  }, [menuVisible, sheetVisible, faceSheetVisible, renameTarget, onBack]);
+  }, [menuVisible, infoVisible, sheetVisible, faceSheetVisible, renameTarget, onBack]);
 
   async function onCritique() {
     setMenuVisible(false);
@@ -151,7 +180,21 @@ export default function PhotoViewerScreen({
     }
   }
 
-  const busy = critiquing || faceDetecting;
+  async function onShowInfo() {
+    setMenuVisible(false);
+    setInfoLoading(true);
+    try {
+      const data = await getPhotoExif(folderPath, photoName);
+      setExif(data);
+      setInfoVisible(true);
+    } catch {
+      Alert.alert('Info unavailable', 'Could not read photo metadata.');
+    } finally {
+      setInfoLoading(false);
+    }
+  }
+
+  const busy = critiquing || faceDetecting || infoLoading;
 
   return (
     <View style={s.container}>
@@ -182,6 +225,11 @@ export default function PhotoViewerScreen({
       {/* Dropdown menu */}
       {menuVisible && (
         <View style={s.dropdown}>
+          <TouchableOpacity style={s.dropdownItem} onPress={onShowInfo}>
+            <Text style={s.dropdownIcon}>ℹ️</Text>
+            <Text style={s.dropdownLabel}>Photo Info</Text>
+          </TouchableOpacity>
+          <View style={s.dropdownDivider} />
           <TouchableOpacity style={s.dropdownItem} onPress={onDetectFaces}>
             <Text style={s.dropdownIcon}>👤</Text>
             <Text style={s.dropdownLabel}>Face Detection</Text>
@@ -329,6 +377,36 @@ export default function PhotoViewerScreen({
         </View>
       </Modal>
 
+      {/* ── Info Sheet ── */}
+      <Modal visible={infoVisible} transparent animationType="slide" onRequestClose={() => setInfoVisible(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setInfoVisible(false)} />
+        <View style={s.sheet}>
+          <View style={s.handle} />
+          <Text style={s.faceSheetTitle}>Photo Info</Text>
+          {exif && !exif.error && (
+            <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
+              <InfoRow icon="📐" label="Size" value={`${exif.width} × ${exif.height}`} />
+              <InfoRow icon="💾" label="File size" value={formatBytes(exif.file_size)} />
+              {exif.date_taken && <InfoRow icon="📅" label="Date taken" value={formatExifDate(exif.date_taken)} />}
+              {exif.camera_make && <InfoRow icon="📷" label="Camera" value={[exif.camera_make, exif.camera_model].filter(Boolean).join(' ')} />}
+              {exif.focal_length != null && <InfoRow icon="🔭" label="Focal length" value={`${exif.focal_length} mm`} />}
+              {exif.f_number != null && <InfoRow icon="🔆" label="Aperture" value={`f/${exif.f_number}`} />}
+              {exif.iso != null && <InfoRow icon="🎚️" label="ISO" value={String(exif.iso)} />}
+              {exif.exposure_time && <InfoRow icon="⏱️" label="Shutter" value={exif.exposure_time} />}
+              {exif.gps_lat != null && (
+                <TouchableOpacity onPress={() => Linking.openURL(`https://maps.google.com/?q=${exif.gps_lat},${exif.gps_lon}`)}>
+                  <InfoRow icon="📍" label="Location" value={`${exif.gps_lat?.toFixed(4)}, ${exif.gps_lon?.toFixed(4)}  →`} />
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          )}
+          {exif?.error && <Text style={s.descText}>No EXIF data found in this photo.</Text>}
+          <TouchableOpacity style={s.closeSheet} onPress={() => setInfoVisible(false)}>
+            <Text style={s.closeSheetTxt}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       {/* ── Rename Modal ── */}
       <Modal visible={!!renameTarget} transparent animationType="fade">
         <View style={s.renameOverlay}>
@@ -438,6 +516,12 @@ const s = StyleSheet.create({
   faceAvatarEmptyText: { fontSize: 30 },
   faceCardName:   { color: '#e8e0ee', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 2 },
   faceCardEdit:   { color: '#9e96a4', fontSize: 11, textAlign: 'center' },
+
+  // Info sheet
+  infoRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#2a2030' },
+  infoIcon:  { fontSize: 16, width: 26 },
+  infoLabel: { color: '#9e96a4', fontSize: 13, width: 90 },
+  infoValue: { color: '#e8e0ee', fontSize: 13, flex: 1, textAlign: 'right' },
 
   // Rename modal
   renameOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 32 },
