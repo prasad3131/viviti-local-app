@@ -22,14 +22,14 @@ type Screen =
   | 'wifi-setup';
 
 export default function App() {
-  const [screen, setScreen]                     = useState<Screen>('loading');
-  const [session, setSession]                   = useState<Session | null>(null);
+  const [screen, setScreen]                       = useState<Screen>('loading');
+  const [session, setSession]                     = useState<Session | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState('');
-  const [currentPhoto, setCurrentPhoto]         = useState('');
-  const [currentFace, setCurrentFace]           = useState<FaceCluster | null>(null);
-  const [currentAlbum, setCurrentAlbum]         = useState<Album | null>(null);
-  const [prevScreen, setPrevScreen]             = useState<Screen>('dashboard');
-  const [wifiSetupIp, setWifiSetupIp]           = useState('');
+  const [currentPhoto, setCurrentPhoto]           = useState('');
+  const [currentFace, setCurrentFace]             = useState<FaceCluster | null>(null);
+  const [currentAlbum, setCurrentAlbum]           = useState<Album | null>(null);
+  const [prevScreen, setPrevScreen]               = useState<Screen>('dashboard');
+  const [wifiSetupIp, setWifiSetupIp]             = useState('');
 
   useEffect(() => {
     loadSession().then(s => {
@@ -50,33 +50,35 @@ export default function App() {
   }
 
   if (screen === 'loading') return null;
+
+  // wifi-setup is checked before the session guard — initial WiFi setup has no session yet
+  if (screen === 'wifi-setup') {
+    const ip = wifiSetupIp || session?.deviceIp || '';
+    const hasSession = !!session?.deviceIp;
+    return (
+      <WiFiSetupScreen
+        deviceIp={ip}
+        isInitialSetup={!hasSession}
+        onBack={() => setScreen(hasSession ? 'dashboard' : 'setup')}
+        onDone={() => {
+          Alert.alert(
+            'Almost there!',
+            hasSession
+              ? 'Your device is switching to the new WiFi.\nReconnect your phone to the new network, then pull to refresh.'
+              : 'Your device is joining your home WiFi.\n\n1. Reconnect your phone to your home WiFi\n2. Come back and tap Find to continue setup.',
+          );
+          setScreen(hasSession ? 'dashboard' : 'setup');
+          setWifiSetupIp('');
+        }}
+      />
+    );
+  }
+
   if (screen === 'setup' || !session) {
     return (
       <SetupScreen
         onSetupDone={handleSetupDone}
         onWifiSetup={ip => { setWifiSetupIp(ip); setScreen('wifi-setup'); }}
-      />
-    );
-  }
-
-  if (screen === 'wifi-setup') {
-    // wifiSetupIp is either the AP-mode IP (initial setup) or session IP (change wifi)
-    const ip = wifiSetupIp || session.deviceIp;
-    return (
-      <WiFiSetupScreen
-        deviceIp={ip}
-        isInitialSetup={!session.deviceIp}
-        onBack={() => setScreen(session.deviceIp ? 'dashboard' : 'setup')}
-        onDone={() => {
-          Alert.alert(
-            'Almost there!',
-            session.deviceIp
-              ? 'Your device is switching to the new WiFi. Reconnect your phone to the new network, then pull to refresh.'
-              : 'Your device is joining your home WiFi.\n\n1. Reconnect your phone to your home WiFi\n2. Come back and tap Find to continue setup.',
-          );
-          setScreen(session.deviceIp ? 'dashboard' : 'setup');
-          setWifiSetupIp('');
-        }}
       />
     );
   }
