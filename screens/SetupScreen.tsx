@@ -6,8 +6,20 @@ import {
 import { checkDevice, registerUser } from '../lib/api';
 import { saveSession } from '../lib/storage';
 
-const SCAN_TIMEOUT_MS = 700;
-const SCAN_SUBNETS = ['192.168.0', '192.168.1', '192.168.2', '10.0.0', '10.0.1'];
+const SCAN_TIMEOUT_MS = 1200;
+const SCAN_BATCH = 50; // stay within OkHttp's 64-request concurrency limit
+
+// Most likely range (.100–.254) first so DHCP devices are found quickly
+function buildScanList(): string[] {
+  const ips: string[] = [];
+  for (const subnet of ['192.168.1', '192.168.0']) {
+    for (let i = 100; i <= 254; i++) ips.push(`${subnet}.${i}`);
+  }
+  for (const subnet of ['192.168.1', '192.168.0']) {
+    for (let i = 1; i <= 99; i++) ips.push(`${subnet}.${i}`);
+  }
+  return ips;
+}
 
 async function probeIp(ip: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -15,10 +27,7 @@ async function probeIp(ip: string): Promise<string> {
     const timer = setTimeout(() => ctrl.abort(), SCAN_TIMEOUT_MS);
     fetch(`http://${ip}:3000/health`, { signal: ctrl.signal })
       .then(r => r.json())
-      .then(data => {
-        clearTimeout(timer);
-        data?.viviti === true ? resolve(ip) : reject();
-      })
+      .then(data => { clearTimeout(timer); data?.viviti === true ? resolve(ip) : reject(); })
       .catch(() => { clearTimeout(timer); reject(); });
   });
 }
@@ -31,20 +40,20 @@ export default function SetupScreen({ onSetupDone }: { onSetupDone: () => void }
 
   async function scanForDevice() {
     setScanning(true);
-    const probes: Promise<string>[] = [];
-    for (const subnet of SCAN_SUBNETS) {
-      for (let i = 1; i <= 254; i++) {
-        probes.push(probeIp(`${subnet}.${i}`));
-      }
+    const allIps = buildScanList();
+    let found: string | null = null;
+    for (let i = 0; i < allIps.length && !found; i += SCAN_BATCH) {
+      const batch = allIps.slice(i, i + SCAN_BATCH);
+      try {
+        found = await Promise.any(batch.map(probeIp));
+      } catch { /* batch had no match, continue */ }
     }
-    try {
-      const found = await Promise.any(probes);
+    setScanning(false);
+    if (found) {
       setIp(found);
       Alert.alert('Device found!', `Viviti device found at ${found}`);
-    } catch {
+    } else {
       Alert.alert('Not found', 'No Viviti device found on this WiFi.\n\nMake sure the device is powered on and connected to the same network.');
-    } finally {
-      setScanning(false);
     }
   }
 
