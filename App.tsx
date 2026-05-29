@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { loadSession, Session } from './lib/storage';
 import SetupScreen from './screens/SetupScreen';
 import DashboardScreen from './screens/DashboardScreen';
@@ -9,6 +10,7 @@ import FacePhotosScreen from './screens/FacePhotosScreen';
 import AlbumsScreen from './screens/AlbumsScreen';
 import AlbumPhotosScreen from './screens/AlbumPhotosScreen';
 import HighlightsScreen from './screens/HighlightsScreen';
+import WiFiSetupScreen from './screens/WiFiSetupScreen';
 import { FaceCluster, Album } from './lib/api';
 
 type Screen =
@@ -16,16 +18,18 @@ type Screen =
   | 'browser' | 'viewer'
   | 'faces' | 'face-photos'
   | 'albums' | 'album-photos'
-  | 'highlights';
+  | 'highlights'
+  | 'wifi-setup';
 
 export default function App() {
-  const [screen, setScreen]               = useState<Screen>('loading');
-  const [session, setSession]             = useState<Session | null>(null);
+  const [screen, setScreen]                     = useState<Screen>('loading');
+  const [session, setSession]                   = useState<Session | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState('');
-  const [currentPhoto, setCurrentPhoto]   = useState('');
-  const [currentFace, setCurrentFace]     = useState<FaceCluster | null>(null);
-  const [currentAlbum, setCurrentAlbum]   = useState<Album | null>(null);
-  const [prevScreen, setPrevScreen]       = useState<Screen>('dashboard');
+  const [currentPhoto, setCurrentPhoto]         = useState('');
+  const [currentFace, setCurrentFace]           = useState<FaceCluster | null>(null);
+  const [currentAlbum, setCurrentAlbum]         = useState<Album | null>(null);
+  const [prevScreen, setPrevScreen]             = useState<Screen>('dashboard');
+  const [wifiSetupIp, setWifiSetupIp]           = useState('');
 
   useEffect(() => {
     loadSession().then(s => {
@@ -46,7 +50,36 @@ export default function App() {
   }
 
   if (screen === 'loading') return null;
-  if (screen === 'setup' || !session) return <SetupScreen onSetupDone={handleSetupDone} />;
+  if (screen === 'setup' || !session) {
+    return (
+      <SetupScreen
+        onSetupDone={handleSetupDone}
+        onWifiSetup={ip => { setWifiSetupIp(ip); setScreen('wifi-setup'); }}
+      />
+    );
+  }
+
+  if (screen === 'wifi-setup') {
+    // wifiSetupIp is either the AP-mode IP (initial setup) or session IP (change wifi)
+    const ip = wifiSetupIp || session.deviceIp;
+    return (
+      <WiFiSetupScreen
+        deviceIp={ip}
+        isInitialSetup={!session.deviceIp}
+        onBack={() => setScreen(session.deviceIp ? 'dashboard' : 'setup')}
+        onDone={() => {
+          Alert.alert(
+            'Almost there!',
+            session.deviceIp
+              ? 'Your device is switching to the new WiFi. Reconnect your phone to the new network, then pull to refresh.'
+              : 'Your device is joining your home WiFi.\n\n1. Reconnect your phone to your home WiFi\n2. Come back and tap Find to continue setup.',
+          );
+          setScreen(session.deviceIp ? 'dashboard' : 'setup');
+          setWifiSetupIp('');
+        }}
+      />
+    );
+  }
 
   if (screen === 'viewer') {
     return (
@@ -123,6 +156,7 @@ export default function App() {
       onOpenPeople={() => setScreen('faces')}
       onOpenAlbums={() => setScreen('albums')}
       onOpenHighlights={() => setScreen('highlights')}
+      onChangeWifi={() => { setWifiSetupIp(session.deviceIp); setScreen('wifi-setup'); }}
     />
   );
 }

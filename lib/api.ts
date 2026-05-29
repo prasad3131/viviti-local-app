@@ -303,6 +303,34 @@ export async function detectPhotoFaces(
   return data.faces ?? [];
 }
 
+export interface WifiNetwork { ssid: string; signal: number; security: string; }
+export type WifiMode = 'ap' | 'client';
+
+export async function getDeviceHealth(ip: string): Promise<{ viviti: boolean; mode: WifiMode }> {
+  try {
+    const res = await fetchWithTimeout(`http://${ip}:3000/health`, 4000);
+    if (!res.ok) return { viviti: false, mode: 'client' };
+    return res.json();
+  } catch {
+    return { viviti: false, mode: 'client' };
+  }
+}
+
+export async function getWifiNetworks(ip: string, rescan = false): Promise<WifiNetwork[]> {
+  const url = `http://${ip}:3000/system/wifi/networks${rescan ? '?rescan=true' : ''}`;
+  const res = await fetchWithTimeout(url, rescan ? 20000 : 5000);
+  if (!res.ok) throw new Error('Scan failed');
+  return res.json();
+}
+
+export async function connectToWifi(ip: string, ssid: string, password: string): Promise<void> {
+  await fetchWithTimeout(`http://${ip}:3000/system/wifi/connect`, 5000, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ssid, password }),
+  });
+}
+
 export async function critiquePhoto(
   folderPath: string,
   name: string,

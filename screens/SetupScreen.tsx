@@ -3,13 +3,12 @@ import {
   Text, TextInput, TouchableOpacity, StyleSheet, View,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import { checkDevice, registerUser } from '../lib/api';
+import { checkDevice, registerUser, getDeviceHealth } from '../lib/api';
 import { saveSession } from '../lib/storage';
 
 const SCAN_TIMEOUT_MS = 1200;
-const SCAN_BATCH = 50; // stay within OkHttp's 64-request concurrency limit
+const SCAN_BATCH = 50;
 
-// Most likely range (.100–.254) first so DHCP devices are found quickly
 function buildScanList(): string[] {
   const ips: string[] = [];
   for (const subnet of ['192.168.1', '192.168.0']) {
@@ -18,6 +17,8 @@ function buildScanList(): string[] {
   for (const subnet of ['192.168.1', '192.168.0']) {
     for (let i = 1; i <= 99; i++) ips.push(`${subnet}.${i}`);
   }
+  // AP mode gateway (NetworkManager hotspot default)
+  ips.unshift('10.42.0.1');
   return ips;
 }
 
@@ -32,33 +33,48 @@ async function probeIp(ip: string): Promise<string> {
   });
 }
 
-export default function SetupScreen({ onSetupDone }: { onSetupDone: () => void }) {
-  const [ip, setIp] = useState('');
+export default function SetupScreen({
+  onSetupDone,
+  onWifiSetup,
+}: {
+  onSetupDone: () => void;
+  onWifiSetup: (ip: string) => void;
+}) {
+  const [ip, setIp]           = useState('');
   const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]   = useState(false);
   const [scanning, setScanning] = useState(false);
 
   async function scanForDevice() {
     setScanning(true);
+    // Try AP mode gateway first (instant), then home subnet batches
     const allIps = buildScanList();
     let found: string | null = null;
     for (let i = 0; i < allIps.length && !found; i += SCAN_BATCH) {
-      const batch = allIps.slice(i, i + SCAN_BATCH);
       try {
-        found = await Promise.any(batch.map(probeIp));
-      } catch { /* batch had no match, continue */ }
+        found = await Promise.any(allIps.slice(i, i + SCAN_BATCH).map(probeIp));
+      } catch {}
     }
     setScanning(false);
     if (found) {
-      setIp(found);
-      Alert.alert('Device found!', `Viviti device found at ${found}`);
+      // Check if device needs WiFi setup (AP mode)
+      const health = await getDeviceHealth(found);
+      if (health.mode === 'ap') {
+        onWifiSetup(found);
+      } else {
+        setIp(found);
+        Alert.alert('Device found!', `Viviti device found at ${found}`);
+      }
     } else {
-      Alert.alert('Not found', 'No Viviti device found on this WiFi.\n\nMake sure the device is powered on and connected to the same network.');
+      Alert.alert(
+        'Not found',
+        'No Viviti device found on this WiFi.\n\nIf this is a new device, connect your phone to the "Viviti-Setup" WiFi and tap Find again.',
+      );
     }
   }
 
   async function handleConnect() {
-    const trimmedIp = ip.trim();
+    const trimmedIp   = ip.trim();
     const trimmedName = username.trim();
     if (!trimmedIp) {
       Alert.alert('Missing IP', 'Enter or scan for the device IP address.');
@@ -72,10 +88,7 @@ export default function SetupScreen({ onSetupDone }: { onSetupDone: () => void }
     try {
       const reachable = await checkDevice(trimmedIp);
       if (!reachable) {
-        Alert.alert(
-          'Cannot reach device',
-          `Could not connect to http://${trimmedIp}:3000\n\nMake sure your phone and device are on the same WiFi.`,
-        );
+        Alert.alert('Cannot reach device', `Could not connect to http://${trimmedIp}:3000\n\nMake sure your phone and device are on the same WiFi.`);
         return;
       }
       const resolvedName = await registerUser(trimmedIp, trimmedName);
@@ -138,10 +151,10 @@ export default function SetupScreen({ onSetupDone }: { onSetupDone: () => void }
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, justifyContent: 'center', padding: 28, backgroundColor: '#fefcfe' },
-  logo: { fontSize: 36, fontWeight: '800', color: '#257af0', marginBottom: 4 },
+  logo:     { fontSize: 36, fontWeight: '800', color: '#257af0', marginBottom: 4 },
   subtitle: { fontSize: 16, color: '#6b6070', marginBottom: 36 },
-  label: { fontSize: 13, fontWeight: '600', color: '#1a1118', marginBottom: 6 },
-  ipRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  label:    { fontSize: 13, fontWeight: '600', color: '#1a1118', marginBottom: 6 },
+  ipRow:    { flexDirection: 'row', gap: 8, marginBottom: 8 },
   input: {
     borderWidth: 1, borderColor: '#e0dbe2', borderRadius: 10,
     padding: 12, fontSize: 15, marginBottom: 8, backgroundColor: '#fff',

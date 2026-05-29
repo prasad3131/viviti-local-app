@@ -18,6 +18,7 @@ export default function DashboardScreen({
   onOpenPeople,
   onOpenAlbums,
   onOpenHighlights,
+  onChangeWifi,
 }: {
   session: Session;
   onLogout: () => void;
@@ -25,6 +26,7 @@ export default function DashboardScreen({
   onOpenPeople: () => void;
   onOpenAlbums: () => void;
   onOpenHighlights: () => void;
+  onChangeWifi: () => void;
 }) {
   const [status, setStatus] = useState<any>(null);
   const [error, setError] = useState('');
@@ -103,6 +105,9 @@ export default function DashboardScreen({
           </View>
           <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={onOpenHighlights}>
             <Text style={styles.btnSecondaryText}>✨ Highlights</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.btn, styles.btnSecondary, { marginTop: 24 }]} onPress={onChangeWifi}>
+            <Text style={styles.btnSecondaryText}>📶 Change WiFi</Text>
           </TouchableOpacity>
         </>
       )}
