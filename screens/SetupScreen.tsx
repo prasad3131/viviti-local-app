@@ -3,7 +3,7 @@ import {
   Text, TextInput, TouchableOpacity, StyleSheet, View,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import { checkDevice, registerUser, getDeviceHealth } from '../lib/api';
+import { registerUser, getDeviceHealth } from '../lib/api';
 import { saveSession } from '../lib/storage';
 
 const SCAN_TIMEOUT_MS = 1200;
@@ -17,7 +17,6 @@ function buildScanList(): string[] {
   for (const subnet of ['192.168.1', '192.168.0']) {
     for (let i = 1; i <= 99; i++) ips.push(`${subnet}.${i}`);
   }
-  // AP mode gateway (NetworkManager hotspot default)
   ips.unshift('10.42.0.1');
   return ips;
 }
@@ -40,16 +39,15 @@ export default function SetupScreen({
   onSetupDone: () => void;
   onWifiSetup: (ip: string) => void;
 }) {
-  const [ip, setIp]               = useState('');
+  const [ip, setIp]             = useState('');
   const [deviceKey, setDeviceKey] = useState('');
-  const [username, setUsername]   = useState('');
-  const [email, setEmail]         = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [scanning, setScanning]   = useState(false);
+  const [username, setUsername] = useState('');
+  const [email, setEmail]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   async function scanForDevice() {
     setScanning(true);
-    // Try AP mode gateway first (instant), then home subnet batches
     const allIps = buildScanList();
     let found: string | null = null;
     for (let i = 0; i < allIps.length && !found; i += SCAN_BATCH) {
@@ -59,12 +57,13 @@ export default function SetupScreen({
     }
     setScanning(false);
     if (found) {
-      // Check if device needs WiFi setup (AP mode)
       const health = await getDeviceHealth(found);
       if (health.mode === 'ap') {
         onWifiSetup(found);
       } else {
         setIp(found);
+        // Auto-fill the key from health response — no manual entry needed
+        if (health.key) setDeviceKey(health.key);
         Alert.alert('Device found!', `Viviti device found at ${found}`);
       }
     } else {
@@ -76,30 +75,31 @@ export default function SetupScreen({
   }
 
   async function handleConnect() {
-    const trimmedIp  = ip.trim();
-    const trimmedKey = deviceKey.trim().toUpperCase();
+    const trimmedIp   = ip.trim();
     const trimmedName = username.trim();
     if (!trimmedIp) {
-      Alert.alert('Missing IP', 'Enter or scan for the device IP address.');
-      return;
-    }
-    if (!trimmedKey) {
-      Alert.alert('Missing device code', 'Enter the device code shown on the Viviti landing page.');
+      Alert.alert('Missing IP', 'Tap Find to locate your device, or enter the IP manually.');
       return;
     }
     if (!trimmedName) {
-      Alert.alert('Missing name', 'Enter your name exactly as you entered it on the device page.');
+      Alert.alert('Missing name', 'Enter your name.');
       return;
     }
     setLoading(true);
     try {
-      const reachable = await checkDevice(trimmedIp);
-      if (!reachable) {
-        Alert.alert('Cannot reach device', `Could not connect to http://${trimmedIp}:3000\n\nMake sure your phone and device are on the same WiFi.`);
-        return;
+      // Fetch health to get the key if not already set (manual IP entry path)
+      let key = deviceKey;
+      if (!key) {
+        const health = await getDeviceHealth(trimmedIp);
+        if (!health.viviti) {
+          Alert.alert('Cannot reach device', `Could not connect to http://${trimmedIp}:3000\n\nMake sure your phone and device are on the same WiFi.`);
+          return;
+        }
+        key = health.key ?? '';
       }
-      const resolvedName = await registerUser(trimmedIp, trimmedName, trimmedKey);
-      await saveSession({ deviceIp: trimmedIp, deviceName: 'Viviti Local', username: resolvedName, deviceKey: trimmedKey });
+
+      const resolvedName = await registerUser(trimmedIp, trimmedName, key);
+      await saveSession({ deviceIp: trimmedIp, deviceName: 'Viviti Local', username: resolvedName, deviceKey: key });
 
       // Register with cloud for heartbeat monitoring (optional — fails silently)
       const trimmedEmail = email.trim().toLowerCase();
@@ -107,13 +107,13 @@ export default function SetupScreen({
         fetch('https://vivitionline.com/api/devices', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: trimmedKey, name: 'Viviti Local', owner_email: trimmedEmail }),
+          body: JSON.stringify({ token: key, name: 'Viviti Local', owner_email: trimmedEmail }),
         }).catch(() => {});
       }
 
       onSetupDone();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Connection failed. Check the device code and try again.');
+      Alert.alert('Error', err.message || 'Connection failed. Make sure you are on the same WiFi as the device.');
     } finally {
       setLoading(false);
     }
@@ -145,19 +145,6 @@ export default function SetupScreen({
           Tap Find to auto-detect your Viviti device on WiFi, or enter the IP manually.
         </Text>
 
-        <Text style={styles.label}>Device code</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. A1B2-C3D4"
-          value={deviceKey}
-          onChangeText={t => setDeviceKey(t.toUpperCase())}
-          autoCapitalize="characters"
-          autoCorrect={false}
-        />
-        <Text style={styles.hint}>
-          Open http://&lt;device-ip&gt;:3000 in your browser — the code is shown at the top.
-        </Text>
-
         <Text style={styles.label}>Your name</Text>
         <TextInput
           style={styles.input}
@@ -167,7 +154,7 @@ export default function SetupScreen({
           autoCapitalize="words"
         />
         <Text style={styles.hint}>
-          Enter the same name you used on the device setup page.
+          A folder with your name will be created on the device.
         </Text>
 
         <Text style={styles.label}>Your email <Text style={styles.optional}>(optional)</Text></Text>

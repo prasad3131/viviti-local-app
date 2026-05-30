@@ -316,7 +316,7 @@ export async function detectPhotoFaces(
 export interface WifiNetwork { ssid: string; signal: number; security: string; }
 export type WifiMode = 'ap' | 'client';
 
-export async function getDeviceHealth(ip: string): Promise<{ viviti: boolean; mode: WifiMode }> {
+export async function getDeviceHealth(ip: string): Promise<{ viviti: boolean; mode: WifiMode; key?: string }> {
   try {
     const res = await fetchWithTimeout(`http://${ip}:3000/health`, 4000);
     if (!res.ok) return { viviti: false, mode: 'client' };
