@@ -94,7 +94,7 @@ export async function getDeviceStatus() {
 
 export async function getFolders(folderPath: string): Promise<string[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(
+  const res = await deviceFetch(
     `${base}/photos/folders?path=${encodeURIComponent(folderPath)}`, 5000,
   );
   if (!res.ok) throw new Error('Could not load folders');
@@ -118,7 +118,7 @@ export async function getPhotos(
   folderPath: string, offset: number, limit = 10,
 ): Promise<{ photos: Photo[]; total: number }> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(
+  const res = await deviceFetch(
     `${base}/photos?path=${encodeURIComponent(folderPath)}&offset=${offset}&limit=${limit}`, 8000,
   );
   if (!res.ok) throw new Error('Could not load photos');
@@ -126,18 +126,24 @@ export async function getPhotos(
 }
 
 export async function photoUrl(folderPath: string, name: string): Promise<string> {
-  const base = await deviceBase();
-  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}`;
+  const s = await loadSession();
+  const base = `http://${s?.deviceIp}:3000`;
+  const key = s?.deviceKey ? `&key=${encodeURIComponent(s.deviceKey)}` : '';
+  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}${key}`;
 }
 
 export async function videoUrl(folderPath: string, name: string): Promise<string> {
-  const base = await deviceBase();
-  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}`;
+  const s = await loadSession();
+  const base = `http://${s?.deviceIp}:3000`;
+  const key = s?.deviceKey ? `&key=${encodeURIComponent(s.deviceKey)}` : '';
+  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}${key}`;
 }
 
 export async function thumbUrl(folderPath: string, name: string, size = 200): Promise<string> {
-  const base = await deviceBase();
-  return `${base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}`;
+  const s = await loadSession();
+  const base = `http://${s?.deviceIp}:3000`;
+  const key = s?.deviceKey ? `&key=${encodeURIComponent(s.deviceKey)}` : '';
+  return `${base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}${key}`;
 }
 
 export async function uploadPhotos(
@@ -149,7 +155,7 @@ export async function uploadPhotos(
   for (const asset of assets) {
     form.append('photos', { uri: asset.uri, name: asset.name, type: asset.type } as any);
   }
-  const res = await fetchWithTimeout(
+  const res = await deviceFetch(
     `${base}/photos/upload?path=${encodeURIComponent(folderPath)}`,
     30000,
     { method: 'POST', body: form },
@@ -201,7 +207,7 @@ export interface TaggedPhoto { photo_path: string; folder: string; name: string;
 
 export async function getAiTags(folderPath: string): Promise<AiTag[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(
+  const res = await deviceFetch(
     `${base}/ai/tags?path=${encodeURIComponent(folderPath)}`, 8000,
   );
   if (!res.ok) return [];
@@ -213,7 +219,7 @@ export async function getTaggedPhotos(
   tag: string, folderPath: string,
 ): Promise<TaggedPhoto[]> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(
+  const res = await deviceFetch(
     `${base}/ai/tagged?tag=${encodeURIComponent(tag)}&path=${encodeURIComponent(folderPath)}`, 8000,
   );
   if (!res.ok) return [];
@@ -250,8 +256,10 @@ export async function getFacePhotos(id: number): Promise<FacePhoto[]> {
 }
 
 export async function faceThumbnailUrl(filename: string): Promise<string> {
-  const base = await deviceBase();
-  return `${base}/ai/faces/thumb/${encodeURIComponent(filename)}`;
+  const s = await loadSession();
+  const base = `http://${s?.deviceIp}:3000`;
+  const key = s?.deviceKey ? `?key=${encodeURIComponent(s.deviceKey)}` : '';
+  return `${base}/ai/faces/thumb/${encodeURIComponent(filename)}${key}`;
 }
 
 export async function triggerFaceBatch(): Promise<void> {
@@ -268,7 +276,7 @@ export interface DetectedFace {
 
 export async function getPhotoExif(folderPath: string, name: string): Promise<PhotoExif> {
   const base = await deviceBase();
-  const res = await fetchWithTimeout(
+  const res = await deviceFetch(
     `${base}/photos/exif?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}`, 10000,
   );
   if (!res.ok) throw new Error('EXIF fetch failed');
