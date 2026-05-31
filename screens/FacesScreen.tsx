@@ -126,6 +126,11 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
 
   async function handleSaveName() {
     if (!editing || !nameInput.trim()) return;
+    const duplicate = faces.find(f => f.id !== editing.id && f.name?.toLowerCase() === nameInput.trim().toLowerCase());
+    if (duplicate) {
+      Alert.alert('Name already used', `"${nameInput.trim()}" is already assigned to another person.`);
+      return;
+    }
     setSaving(true);
     try {
       await setFaceName(editing.id, nameInput.trim());
@@ -153,7 +158,7 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
             ? <Image source={{ uri }} style={styles.avatarImg} />
             : <Text style={styles.avatarPlaceholder}>👤</Text>}
           {isSelected && (
-            <View style={styles.checkOverlay}>
+            <View style={styles.selectedOverlay}>
               <Text style={styles.checkMark}>✓</Text>
             </View>
           )}
@@ -277,12 +282,12 @@ const styles = StyleSheet.create({
   avatarSelected: { borderWidth: 3, borderColor: '#257af0' },
   avatarImg:         { width: '100%', height: '100%' },
   avatarPlaceholder: { fontSize: 36 },
-  checkOverlay: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: '#257af0', justifyContent: 'center', alignItems: 'center',
+  selectedOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(37, 122, 240, 0.5)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  checkMark: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  checkMark: { color: '#fff', fontSize: 28, fontWeight: '700' },
   faceName: { fontSize: 13, fontWeight: '600', color: '#1a1118', textAlign: 'center' },
   faceCount: { fontSize: 11, color: '#9e96a4', marginTop: 2 },
 
