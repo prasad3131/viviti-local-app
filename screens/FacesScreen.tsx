@@ -20,6 +20,9 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [thumbUris, setThumbUris]   = useState<Record<number, string>>({});
 
+  // Hide unconfirmed (unnamed, 1 photo) clusters by default
+  const [showAll, setShowAll]        = useState(false);
+
   // Select mode
   const [selecting, setSelecting]   = useState(false);
   const [selected, setSelected]     = useState<Set<number>>(new Set());
@@ -143,6 +146,11 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
     }
   }
 
+  // Confirmed = named OR appears in 2+ photos. Unconfirmed = unnamed single-photo clusters.
+  const confirmedFaces   = faces.filter(f => f.name || f.photo_count >= 2);
+  const unconfirmedFaces = faces.filter(f => !f.name && f.photo_count < 2);
+  const displayFaces     = showAll ? faces : confirmedFaces;
+
   const renderFace = ({ item }: { item: FaceCluster }) => {
     const uri = thumbUris[item.id];
     const isSelected = selected.has(item.id);
@@ -209,7 +217,7 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
         <ActivityIndicator color="#257af0" style={{ marginTop: 60 }} />
       ) : (
         <FlatList
-          data={faces}
+          data={displayFaces}
           keyExtractor={f => String(f.id)}
           numColumns={COL}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -220,6 +228,17 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
               <Text style={styles.emptyTitle}>No faces found yet</Text>
               <Text style={styles.emptyDesc}>Tap "Scan" to detect faces in your photos. Long-press a face to select or rename.</Text>
             </View>
+          }
+          ListFooterComponent={
+            unconfirmedFaces.length > 0 ? (
+              <TouchableOpacity style={styles.showAllBtn} onPress={() => setShowAll(v => !v)}>
+                <Text style={styles.showAllTxt}>
+                  {showAll
+                    ? 'Hide uncertain detections'
+                    : `${unconfirmedFaces.length} uncertain detection${unconfirmedFaces.length !== 1 ? 's' : ''} hidden — tap to show`}
+                </Text>
+              </TouchableOpacity>
+            ) : null
           }
           renderItem={renderFace}
         />
@@ -271,7 +290,15 @@ const styles = StyleSheet.create({
   deleteTxt: { color: '#e53935', fontSize: 13, fontWeight: '700' },
   deleteTxtDisabled: { color: '#e53935' },
 
-  list: { padding: 8, paddingBottom: 40 },
+  list: { padding: 8, paddingBottom: 16 },
+
+  showAllBtn: {
+    marginHorizontal: 16, marginTop: 4, marginBottom: 32,
+    paddingVertical: 12, paddingHorizontal: 16,
+    backgroundColor: '#f4f0f8', borderRadius: 10,
+    borderWidth: 1, borderColor: '#e0dbe2', alignItems: 'center',
+  },
+  showAllTxt: { color: '#6b6070', fontSize: 13, fontWeight: '500' },
 
   cell:   { width: CELL, padding: 8, alignItems: 'center' },
   avatar: {
