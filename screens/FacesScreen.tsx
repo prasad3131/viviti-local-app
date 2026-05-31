@@ -123,6 +123,27 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
     Alert.alert(face.name ?? 'Unknown', undefined, [
       { text: 'Select', onPress: () => enterSelectMode(face.id) },
       { text: 'Rename', onPress: () => openRename(face) },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: () => Alert.alert(
+          'Delete person',
+          `Remove "${face.name ?? 'Unknown'}" from People? Photos are not deleted.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Delete', style: 'destructive',
+              onPress: async () => {
+                try {
+                  await deleteFaceCluster(face.id);
+                  setFaces(prev => prev.filter(f => f.id !== face.id));
+                } catch {
+                  Alert.alert('Error', 'Could not delete.');
+                }
+              },
+            },
+          ],
+        ),
+      },
       { text: 'Cancel', style: 'cancel' },
     ]);
   }
@@ -305,8 +326,9 @@ const styles = StyleSheet.create({
     width: CELL - 24, height: CELL - 24, borderRadius: (CELL - 24) / 2,
     backgroundColor: '#f0edf2', overflow: 'hidden',
     justifyContent: 'center', alignItems: 'center', marginBottom: 6,
+    borderWidth: 3, borderColor: 'transparent',
   },
-  avatarSelected: { borderWidth: 3, borderColor: '#257af0' },
+  avatarSelected: { borderColor: '#257af0' },
   avatarImg:         { width: '100%', height: '100%' },
   avatarPlaceholder: { fontSize: 36 },
   selectedOverlay: {
