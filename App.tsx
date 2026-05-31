@@ -104,6 +104,7 @@ export default function App() {
         folderPath={currentFolderPath}
         photoName={currentPhoto}
         onBack={() => setScreen(prevScreen)}
+        onOpenPeople={() => setScreen('faces')}
       />
     );
   }

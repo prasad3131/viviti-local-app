@@ -89,11 +89,12 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 type FaceWithUrl = DetectedFace & { thumbUrl: string | null };
 
 export default function PhotoViewerScreen({
-  folderPath, photoName, onBack,
+  folderPath, photoName, onBack, onOpenPeople,
 }: {
   folderPath: string;
   photoName: string;
   onBack: () => void;
+  onOpenPeople?: () => void;
 }) {
   const [actionsVisible, setActionsVisible] = useState(false);
   const [critiquing, setCritiquing]         = useState(false);
@@ -106,6 +107,7 @@ export default function PhotoViewerScreen({
   const [renameTarget, setRenameTarget]     = useState<FaceWithUrl | null>(null);
   const [renameText, setRenameText]         = useState('');
   const [renaming, setRenaming]             = useState(false);
+  const [anyFaceNamed, setAnyFaceNamed]     = useState(false);
 
   const [infoLoading, setInfoLoading]       = useState(false);
   const [exif, setExif]                     = useState<PhotoExif | null>(null);
@@ -179,6 +181,7 @@ export default function PhotoViewerScreen({
       setDetectedFaces(prev =>
         prev.map(f => f.cluster_id === renameTarget.cluster_id ? { ...f, cluster_name: saved } : f)
       );
+      setAnyFaceNamed(true);
       setRenameTarget(null);
     } catch {
       Alert.alert('Error', 'Could not save name.');
@@ -342,9 +345,19 @@ export default function PhotoViewerScreen({
               ))}
             </ScrollView>
           )}
-          <TouchableOpacity style={s.closeSheet} onPress={() => setFaceSheetVisible(false)}>
-            <Text style={s.closeSheetTxt}>Done</Text>
-          </TouchableOpacity>
+          {anyFaceNamed && onOpenPeople ? (
+            <TouchableOpacity style={s.viewPeopleBtn} onPress={() => {
+              setFaceSheetVisible(false);
+              setAnyFaceNamed(false);
+              onOpenPeople();
+            }}>
+              <Text style={s.viewPeopleTxt}>View in People →</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={s.closeSheet} onPress={() => setFaceSheetVisible(false)}>
+              <Text style={s.closeSheetTxt}>Done</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Modal>
 
@@ -478,6 +491,8 @@ const s = StyleSheet.create({
   issueMsg:     { color: '#e8e0ee', fontSize: 14, lineHeight: 21, flex: 1 },
 
   closeSheet:    { marginTop: 18, backgroundColor: '#2a2030', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  viewPeopleBtn: { marginTop: 18, backgroundColor: '#6428b4', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  viewPeopleTxt: { color: '#fff', fontSize: 16, fontWeight: '700' },
   closeSheetTxt: { color: '#e8e0ee', fontSize: 16, fontWeight: '600' },
 
   faceSheetTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
