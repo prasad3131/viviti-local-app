@@ -151,16 +151,17 @@ export async function uploadPhotos(
   assets: Array<{ uri: string; name: string; type: string }>,
 ): Promise<void> {
   const base = await deviceBase();
-  const form = new FormData();
+  // Upload one file at a time — 90s per file avoids timeout on large photos
   for (const asset of assets) {
+    const form = new FormData();
     form.append('photos', { uri: asset.uri, name: asset.name, type: asset.type } as any);
+    const res = await deviceFetch(
+      `${base}/photos/upload?path=${encodeURIComponent(folderPath)}`,
+      90_000,
+      { method: 'POST', body: form },
+    );
+    if (!res.ok) throw new Error(`Failed to upload ${asset.name}`);
   }
-  const res = await deviceFetch(
-    `${base}/photos/upload?path=${encodeURIComponent(folderPath)}`,
-    30000,
-    { method: 'POST', body: form },
-  );
-  if (!res.ok) throw new Error('Upload failed');
 }
 
 export async function movePhotos(

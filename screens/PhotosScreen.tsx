@@ -166,6 +166,7 @@ export default function PhotosScreen({
                   folderPath={folderPath}
                   photoName={item.name}
                   style={styles.thumb}
+                  thumb
                 />
                 {isSelected && (
                   <View style={styles.checkOverlay}>
