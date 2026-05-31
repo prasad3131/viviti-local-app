@@ -243,12 +243,12 @@ export async function deleteFaceCluster(id: number): Promise<void> {
   await deviceFetch(`${base}/ai/faces/${id}`, 5000, { method: 'DELETE' });
 }
 
-export async function setFaceName(id: number, name: string): Promise<void> {
+export async function setFaceName(id: number, name: string, thumbFilename?: string): Promise<void> {
   const base = await deviceBase();
   await deviceFetch(`${base}/ai/faces/${id}`, 5000, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, ...(thumbFilename ? { thumb_filename: thumbFilename } : {}) }),
   });
 }
 

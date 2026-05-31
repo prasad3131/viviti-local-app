@@ -176,7 +176,7 @@ export default function PhotoViewerScreen({
     if (!renameTarget || !renameText.trim()) return;
     setRenaming(true);
     try {
-      await setFaceName(renameTarget.cluster_id, renameText.trim());
+      await setFaceName(renameTarget.cluster_id, renameText.trim(), renameTarget.thumb_filename ?? undefined);
       const saved = renameText.trim();
       setDetectedFaces(prev =>
         prev.map(f => f.cluster_id === renameTarget.cluster_id ? { ...f, cluster_name: saved } : f)
