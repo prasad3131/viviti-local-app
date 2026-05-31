@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, TextInput, Modal, Image,
@@ -6,8 +6,19 @@ import {
 } from 'react-native';
 import { getFaces, setFaceName, triggerFaceBatch, faceThumbnailUrl, deleteFaceCluster, FaceCluster } from '../lib/api';
 
-const COL = 3;
-const CELL = Dimensions.get('window').width / COL;
+const { width: SCREEN_W } = Dimensions.get('window');
+const COL     = 3;
+const ALPHA_W = 28;
+const CELL    = (SCREEN_W - ALPHA_W) / COL;
+const ROW_H   = Math.round(CELL) + 36;
+
+const LETTER_GROUPS = [
+  { label: 'A–E', chars: 'ABCDE' },
+  { label: 'F–J', chars: 'FGHIJ' },
+  { label: 'K–O', chars: 'KLMNO' },
+  { label: 'P–T', chars: 'PQRST' },
+  { label: 'U–Z', chars: 'UVWXYZ' },
+];
 
 interface Props {
   onBack: () => void;
@@ -19,16 +30,13 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [thumbUris, setThumbUris]   = useState<Record<number, string>>({});
+  const [searchText, setSearchText] = useState('');
+  const listRef                     = useRef<FlatList<FaceCluster>>(null);
 
-  // Hide unconfirmed (unnamed, 1 photo) clusters by default
-  const [showAll, setShowAll]        = useState(false);
-
-  // Select mode
   const [selecting, setSelecting]   = useState(false);
   const [selected, setSelected]     = useState<Set<number>>(new Set());
   const [deleting, setDeleting]     = useState(false);
 
-  // Rename modal
   const [editing, setEditing]       = useState<FaceCluster | null>(null);
   const [nameInput, setNameInput]   = useState('');
   const [saving, setSaving]         = useState(false);
@@ -59,6 +67,33 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
     await load();
     setRefreshing(false);
   };
+
+  // Sort: named alphabetically first, then unnamed by photo_count desc
+  const sortedFaces = [...faces].sort((a, b) => {
+    if (!a.name && !b.name) return b.photo_count - a.photo_count;
+    if (!a.name) return 1;
+    if (!b.name) return -1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const displayFaces = searchText.trim()
+    ? sortedFaces.filter(f => f.name?.toLowerCase().includes(searchText.toLowerCase()))
+    : sortedFaces;
+
+  function scrollToLetter(group: typeof LETTER_GROUPS[0]) {
+    const idx = sortedFaces.findIndex(
+      f => f.name && group.chars.includes(f.name[0]?.toUpperCase() ?? '')
+    );
+    if (idx >= 0 && listRef.current) {
+      try { listRef.current.scrollToIndex({ index: idx, animated: true }); } catch {}
+    }
+  }
+
+  const getItemLayout = (_: any, index: number) => ({
+    length: ROW_H,
+    offset: ROW_H * Math.floor(index / COL),
+    index,
+  });
 
   function exitSelectMode() {
     setSelecting(false);
@@ -121,8 +156,8 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
   function handleLongPress(face: FaceCluster) {
     if (selecting) { toggleSelect(face.id); return; }
     Alert.alert(face.name ?? 'Unknown', undefined, [
-      { text: 'Select', onPress: () => enterSelectMode(face.id) },
-      { text: 'Rename', onPress: () => openRename(face) },
+      { text: 'Select',  onPress: () => enterSelectMode(face.id) },
+      { text: 'Rename',  onPress: () => openRename(face) },
       {
         text: 'Delete', style: 'destructive',
         onPress: () => Alert.alert(
@@ -150,7 +185,9 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
 
   async function handleSaveName() {
     if (!editing || !nameInput.trim()) return;
-    const duplicate = faces.find(f => f.id !== editing.id && f.name?.toLowerCase() === nameInput.trim().toLowerCase());
+    const duplicate = faces.find(
+      f => f.id !== editing.id && f.name?.toLowerCase() === nameInput.trim().toLowerCase()
+    );
     if (duplicate) {
       Alert.alert('Name already used', `"${nameInput.trim()}" is already assigned to another person.`);
       return;
@@ -166,11 +203,6 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
       setSaving(false);
     }
   }
-
-  // Confirmed = named OR appears in 2+ photos. Unconfirmed = unnamed single-photo clusters.
-  const confirmedFaces   = faces.filter(f => f.name || f.photo_count >= 2);
-  const unconfirmedFaces = faces.filter(f => !f.name && f.photo_count < 2);
-  const displayFaces     = showAll ? faces : confirmedFaces;
 
   const renderFace = ({ item }: { item: FaceCluster }) => {
     const uri = thumbUris[item.id];
@@ -202,6 +234,7 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         {selecting ? (
           <>
@@ -234,38 +267,75 @@ export default function FacesScreen({ onBack, onOpenFace }: Props) {
         )}
       </View>
 
-      {loading ? (
-        <ActivityIndicator color="#257af0" style={{ marginTop: 60 }} />
-      ) : (
-        <FlatList
-          data={displayFaces}
-          keyExtractor={f => String(f.id)}
-          numColumns={COL}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyIcon}>👤</Text>
-              <Text style={styles.emptyTitle}>No faces found yet</Text>
-              <Text style={styles.emptyDesc}>Tap "Scan" to detect faces in your photos. Long-press a face to select or rename.</Text>
-            </View>
-          }
-          ListFooterComponent={
-            unconfirmedFaces.length > 0 ? (
-              <TouchableOpacity style={styles.showAllBtn} onPress={() => setShowAll(v => !v)}>
-                <Text style={styles.showAllTxt}>
-                  {showAll
-                    ? 'Hide uncertain detections'
-                    : `${unconfirmedFaces.length} uncertain detection${unconfirmedFaces.length !== 1 ? 's' : ''} hidden — tap to show`}
-                </Text>
-              </TouchableOpacity>
-            ) : null
-          }
-          renderItem={renderFace}
-        />
+      {/* Search bar — hidden in select mode */}
+      {!selecting && (
+        <View style={styles.searchBar}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search people..."
+            placeholderTextColor="#9e96a4"
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+        </View>
       )}
 
-      {/* Rename modal — only when not in select mode */}
+      {/* List + alphabetical index */}
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator color="#257af0" style={{ marginTop: 60, flex: 1 }} />
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={displayFaces}
+            keyExtractor={f => String(f.id)}
+            numColumns={COL}
+            getItemLayout={getItemLayout}
+            onScrollToIndexFailed={info => {
+              listRef.current?.scrollToOffset({
+                offset: info.averageItemLength * info.index,
+                animated: true,
+              });
+            }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Text style={styles.emptyIcon}>👤</Text>
+                <Text style={styles.emptyTitle}>
+                  {searchText ? 'No results' : 'No faces found yet'}
+                </Text>
+                <Text style={styles.emptyDesc}>
+                  {searchText
+                    ? `No people named "${searchText}"`
+                    : 'Tap "Scan" to detect faces in your photos. Long-press a face to rename or delete.'}
+                </Text>
+              </View>
+            }
+            renderItem={renderFace}
+          />
+        )}
+
+        {/* Alphabetical index — hidden while searching or selecting */}
+        {!selecting && !searchText && (
+          <View style={styles.alphaIndex}>
+            {LETTER_GROUPS.map(group => (
+              <TouchableOpacity
+                key={group.label}
+                style={styles.alphaGroup}
+                onPress={() => scrollToLetter(group)}
+                hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+              >
+                <Text style={styles.alphaLabel}>{group.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Rename modal */}
       <Modal visible={!!editing && !selecting} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -311,15 +381,20 @@ const styles = StyleSheet.create({
   deleteTxt: { color: '#e53935', fontSize: 13, fontWeight: '700' },
   deleteTxtDisabled: { color: '#e53935' },
 
-  list: { padding: 8, paddingBottom: 16 },
-
-  showAllBtn: {
-    marginHorizontal: 16, marginTop: 4, marginBottom: 32,
-    paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: '#f4f0f8', borderRadius: 10,
-    borderWidth: 1, borderColor: '#e0dbe2', alignItems: 'center',
+  searchBar: {
+    paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: '#fefcfe',
+    borderBottomWidth: 1, borderBottomColor: '#f0edf2',
   },
-  showAllTxt: { color: '#6b6070', fontSize: 13, fontWeight: '500' },
+  searchInput: {
+    backgroundColor: '#f4f0f8', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 9,
+    fontSize: 15, color: '#1a1118',
+  },
+
+  content: { flex: 1, flexDirection: 'row' },
+
+  list: { padding: 8, paddingBottom: 40 },
 
   cell:   { width: CELL, padding: 8, alignItems: 'center' },
   avatar: {
@@ -339,6 +414,27 @@ const styles = StyleSheet.create({
   checkMark: { color: '#fff', fontSize: 28, fontWeight: '700' },
   faceName: { fontSize: 13, fontWeight: '600', color: '#1a1118', textAlign: 'center' },
   faceCount: { fontSize: 11, color: '#9e96a4', marginTop: 2 },
+
+  alphaIndex: {
+    width: ALPHA_W,
+    paddingVertical: 20,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  alphaGroup: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: ALPHA_W,
+  },
+  alphaLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#9e96a4',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
 
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },
   emptyIcon:  { fontSize: 48, marginBottom: 16 },
