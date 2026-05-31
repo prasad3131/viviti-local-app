@@ -91,7 +91,7 @@ export default function PhotosScreen({
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
       quality: 1,
     });
@@ -99,11 +99,15 @@ export default function PhotosScreen({
 
     setUploading(true);
     try {
-      const assets = result.assets.map(a => ({
-        uri: a.uri,
-        name: a.fileName || `photo_${Date.now()}.jpg`,
-        type: a.mimeType || 'image/jpeg',
-      }));
+      const assets = result.assets.map(a => {
+        const isVideo = a.type === 'video';
+        const ext = isVideo ? (a.mimeType?.split('/')[1] || 'mp4') : 'jpg';
+        return {
+          uri: a.uri,
+          name: a.fileName || `${isVideo ? 'video' : 'photo'}_${Date.now()}.${ext}`,
+          type: a.mimeType || (isVideo ? 'video/mp4' : 'image/jpeg'),
+        };
+      });
       await uploadPhotos(folderPath, assets);
       await loadPage(true);
     } catch (err: any) {
