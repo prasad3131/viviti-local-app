@@ -8,7 +8,7 @@ import SmartImage from '../components/SmartImage';
 import {
   critiquePhoto, CritiqueResult, CritiqueIssue,
   detectPhotoFaces, DetectedFace, setFaceName, faceThumbnailUrl,
-  getPhotoExif, PhotoExif, getPhotos, deletePhotos,
+  getPhotoExif, PhotoExif, getPhotos, deletePhotos, deleteFaceCluster,
 } from '../lib/api';
 import { Linking } from 'react-native';
 
@@ -266,6 +266,23 @@ export default function PhotoViewerScreen({
     ]);
   }
 
+  async function handleDeleteFace(face: FaceWithUrl) {
+    Alert.alert('Remove Face', 'Remove this person from People?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteFaceCluster(face.cluster_id);
+            setDetectedFaces(prev => prev.filter(f => f.cluster_id !== face.cluster_id));
+          } catch {
+            Alert.alert('Error', 'Could not remove face.');
+          }
+        },
+      },
+    ]);
+  }
+
   async function handleSaveName() {
     if (!renameTarget || !renameText.trim()) return;
     setRenaming(true);
@@ -431,14 +448,24 @@ export default function PhotoViewerScreen({
           {detectedFaces.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.faceRow}>
               {detectedFaces.map((face, idx) => (
-                <TouchableOpacity key={idx} style={s.faceCard}
-                  onPress={() => { setRenameTarget(face); setRenameText(face.cluster_name ?? ''); }}>
-                  {face.thumbUrl
-                    ? <Image source={{ uri: face.thumbUrl }} style={s.faceAvatar} />
-                    : <View style={[s.faceAvatar, s.faceAvatarEmpty]}><Text style={s.faceAvatarEmptyText}>👤</Text></View>}
-                  <Text style={s.faceCardName} numberOfLines={1}>{face.cluster_name ?? 'Unknown'}</Text>
-                  <Text style={s.faceCardEdit}>✏️ Rename</Text>
-                </TouchableOpacity>
+                <View key={idx} style={s.faceCard}>
+                  <TouchableOpacity
+                    onPress={() => { setRenameTarget(face); setRenameText(face.cluster_name ?? ''); }}
+                    activeOpacity={0.8}>
+                    {face.thumbUrl
+                      ? <Image source={{ uri: face.thumbUrl }} style={s.faceAvatar} />
+                      : <View style={[s.faceAvatar, s.faceAvatarEmpty]}><Text style={s.faceAvatarEmptyText}>👤</Text></View>}
+                    <Text style={s.faceCardName} numberOfLines={1}>{face.cluster_name ?? 'Unknown'}</Text>
+                  </TouchableOpacity>
+                  <View style={s.faceCardActions}>
+                    <TouchableOpacity onPress={() => { setRenameTarget(face); setRenameText(face.cluster_name ?? ''); }}>
+                      <Text style={s.faceCardEdit}>✏️ Rename</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleDeleteFace(face)}>
+                      <Text style={s.faceCardDelete}>🗑️ Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               ))}
             </ScrollView>
           )}
@@ -615,8 +642,10 @@ const s = StyleSheet.create({
   faceAvatar:     { width: 80, height: 80, borderRadius: 40, marginBottom: 8 },
   faceAvatarEmpty: { backgroundColor: '#2a2030', justifyContent: 'center', alignItems: 'center' },
   faceAvatarEmptyText: { fontSize: 30 },
-  faceCardName:   { color: '#e8e0ee', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 2 },
-  faceCardEdit:   { color: '#9e96a4', fontSize: 11, textAlign: 'center' },
+  faceCardName:    { color: '#e8e0ee', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 4 },
+  faceCardActions: { flexDirection: 'row', gap: 8 },
+  faceCardEdit:    { color: '#9e96a4', fontSize: 11, textAlign: 'center' },
+  faceCardDelete:  { color: '#f43f5e', fontSize: 11, textAlign: 'center' },
 
   infoRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#2a2030' },
   infoIcon:  { fontSize: 16, width: 26 },
