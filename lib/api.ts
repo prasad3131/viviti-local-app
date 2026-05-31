@@ -238,6 +238,11 @@ export async function getFaces(): Promise<FaceCluster[]> {
   return faces ?? [];
 }
 
+export async function deleteFaceCluster(id: number): Promise<void> {
+  const base = await deviceBase();
+  await deviceFetch(`${base}/ai/faces/${id}`, 5000, { method: 'DELETE' });
+}
+
 export async function setFaceName(id: number, name: string): Promise<void> {
   const base = await deviceBase();
   await deviceFetch(`${base}/ai/faces/${id}`, 5000, {

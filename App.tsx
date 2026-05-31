@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, BackHandler } from 'react-native';
 import { loadSession, Session } from './lib/storage';
 import SetupScreen from './screens/SetupScreen';
 import DashboardScreen from './screens/DashboardScreen';
@@ -37,6 +37,21 @@ export default function App() {
       setScreen(s ? 'dashboard' : 'setup');
     });
   }, []);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (screen === 'viewer')       { setScreen(prevScreen); return true; }
+      if (screen === 'face-photos')  { setScreen('faces');     return true; }
+      if (screen === 'faces')        { setScreen('dashboard'); return true; }
+      if (screen === 'album-photos') { setScreen('albums');    return true; }
+      if (screen === 'albums')       { setScreen('dashboard'); return true; }
+      if (screen === 'highlights')   { setScreen('dashboard'); return true; }
+      if (screen === 'browser')      { setScreen('dashboard'); return true; }
+      if (screen === 'wifi-setup')   { setScreen(session ? 'dashboard' : 'setup'); return true; }
+      return false; // dashboard/setup: allow default back (app to background)
+    });
+    return () => sub.remove();
+  }, [screen, prevScreen, session]);
 
   function handleSetupDone() {
     loadSession().then(s => { setSession(s); setScreen('dashboard'); });
