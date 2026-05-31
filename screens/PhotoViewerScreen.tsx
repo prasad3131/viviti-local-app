@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, TouchableOpacity, Text, StyleSheet,
   Dimensions, StatusBar, Modal, ScrollView, ActivityIndicator,
-  Alert, TextInput, Image, BackHandler,
+  Alert, TextInput, Image, BackHandler, PanResponder,
 } from 'react-native';
 import SmartImage from '../components/SmartImage';
 import {
@@ -95,38 +95,48 @@ export default function PhotoViewerScreen({
   photoName: string;
   onBack: () => void;
 }) {
-  const [menuVisible, setMenuVisible]     = useState(false);
-  const [critiquing, setCritiquing]       = useState(false);
-  const [result, setResult]               = useState<CritiqueResult | null>(null);
-  const [sheetVisible, setSheetVisible]   = useState(false);
+  const [actionsVisible, setActionsVisible] = useState(false);
+  const [critiquing, setCritiquing]         = useState(false);
+  const [result, setResult]                 = useState<CritiqueResult | null>(null);
+  const [sheetVisible, setSheetVisible]     = useState(false);
 
-  const [faceDetecting, setFaceDetecting] = useState(false);
-  const [detectedFaces, setDetectedFaces] = useState<FaceWithUrl[]>([]);
+  const [faceDetecting, setFaceDetecting]   = useState(false);
+  const [detectedFaces, setDetectedFaces]   = useState<FaceWithUrl[]>([]);
   const [faceSheetVisible, setFaceSheetVisible] = useState(false);
-  const [renameTarget, setRenameTarget]   = useState<FaceWithUrl | null>(null);
-  const [renameText, setRenameText]       = useState('');
-  const [renaming, setRenaming]           = useState(false);
+  const [renameTarget, setRenameTarget]     = useState<FaceWithUrl | null>(null);
+  const [renameText, setRenameText]         = useState('');
+  const [renaming, setRenaming]             = useState(false);
 
-  const [infoLoading, setInfoLoading]     = useState(false);
-  const [exif, setExif]                   = useState<PhotoExif | null>(null);
-  const [infoVisible, setInfoVisible]     = useState(false);
+  const [infoLoading, setInfoLoading]       = useState(false);
+  const [exif, setExif]                     = useState<PhotoExif | null>(null);
+  const [infoVisible, setInfoVisible]       = useState(false);
 
-  // Intercept Android back gesture / hardware back — go back, don't exit app
+  // Swipe-up anywhere on the photo opens the actions sheet
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        gs.dy < -20 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5,
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy < -60) setActionsVisible(true);
+      },
+    })
+  ).current;
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (menuVisible) { setMenuVisible(false); return true; }
-      if (infoVisible) { setInfoVisible(false); return true; }
-      if (sheetVisible) { setSheetVisible(false); return true; }
+      if (actionsVisible) { setActionsVisible(false); return true; }
+      if (infoVisible)    { setInfoVisible(false);    return true; }
+      if (sheetVisible)   { setSheetVisible(false);   return true; }
       if (faceSheetVisible) { setFaceSheetVisible(false); return true; }
-      if (renameTarget) { setRenameTarget(null); return true; }
+      if (renameTarget)   { setRenameTarget(null);    return true; }
       onBack();
       return true;
     });
     return () => sub.remove();
-  }, [menuVisible, infoVisible, sheetVisible, faceSheetVisible, renameTarget, onBack]);
+  }, [actionsVisible, infoVisible, sheetVisible, faceSheetVisible, renameTarget, onBack]);
 
   async function onCritique() {
-    setMenuVisible(false);
+    setActionsVisible(false);
     setCritiquing(true);
     try {
       const r = await critiquePhoto(folderPath, photoName);
@@ -134,17 +144,14 @@ export default function PhotoViewerScreen({
       setResult(r);
       setSheetVisible(true);
     } catch {
-      Alert.alert(
-        'Critique unavailable',
-        'Make sure Python and OpenCV are installed on the device.',
-      );
+      Alert.alert('Critique unavailable', 'Make sure Python and OpenCV are installed on the device.');
     } finally {
       setCritiquing(false);
     }
   }
 
   async function onDetectFaces() {
-    setMenuVisible(false);
+    setActionsVisible(false);
     setFaceDetecting(true);
     try {
       const rawFaces = await detectPhotoFaces(folderPath, photoName);
@@ -181,7 +188,7 @@ export default function PhotoViewerScreen({
   }
 
   async function onShowInfo() {
-    setMenuVisible(false);
+    setActionsVisible(false);
     setInfoLoading(true);
     try {
       const data = await getPhotoExif(folderPath, photoName);
@@ -197,7 +204,7 @@ export default function PhotoViewerScreen({
   const busy = critiquing || faceDetecting || infoLoading;
 
   return (
-    <View style={s.container}>
+    <View style={s.container} {...panResponder.panHandlers}>
       <StatusBar hidden />
       <SmartImage
         folderPath={folderPath}
@@ -206,53 +213,50 @@ export default function PhotoViewerScreen({
         resizeMode="contain"
       />
 
+      {/* Back button top-left */}
       <TouchableOpacity style={s.closeBtn} onPress={onBack}>
         <Text style={s.closeText}>✕</Text>
       </TouchableOpacity>
 
-      {/* Three-dots menu button */}
-      <TouchableOpacity style={s.menuBtn} onPress={() => setMenuVisible(v => !v)} disabled={busy}>
-        {busy
-          ? <ActivityIndicator color="#fff" size="small" />
-          : <Text style={s.menuDots}>⋮</Text>}
-      </TouchableOpacity>
-
-      {/* Tap-away backdrop to close menu */}
-      {menuVisible && (
-        <TouchableOpacity style={s.menuBackdrop} activeOpacity={1} onPress={() => setMenuVisible(false)} />
-      )}
-
-      {/* Dropdown menu */}
-      {menuVisible && (
-        <View style={s.dropdown}>
-          <TouchableOpacity style={s.dropdownItem} onPress={onShowInfo}>
-            <Text style={s.dropdownIcon}>ℹ️</Text>
-            <Text style={s.dropdownLabel}>Photo Info</Text>
-          </TouchableOpacity>
-          <View style={s.dropdownDivider} />
-          <TouchableOpacity style={s.dropdownItem} onPress={onDetectFaces}>
-            <Text style={s.dropdownIcon}>👤</Text>
-            <Text style={s.dropdownLabel}>Face Detection</Text>
-          </TouchableOpacity>
-          <View style={s.dropdownDivider} />
-          <TouchableOpacity style={s.dropdownItem} onPress={onCritique}>
-            <Text style={s.dropdownIcon}>⭐</Text>
-            <Text style={s.dropdownLabel}>Critique</Text>
-          </TouchableOpacity>
+      {/* Loading spinner while an action is running */}
+      {busy && (
+        <View style={s.busyBadge}>
+          <ActivityIndicator color="#fff" size="small" />
         </View>
       )}
 
+      {/* Bottom handle — tap or swipe up to open actions */}
+      <TouchableOpacity style={s.bottomHandle} onPress={() => setActionsVisible(true)} activeOpacity={0.7}>
+        <View style={s.handlePill} />
+      </TouchableOpacity>
+
+      {/* ── Actions Sheet ── */}
+      <Modal visible={actionsVisible} transparent animationType="slide" onRequestClose={() => setActionsVisible(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setActionsVisible(false)} />
+        <View style={s.actionsSheet}>
+          <View style={s.handle} />
+          <TouchableOpacity style={s.actionRow} onPress={onShowInfo}>
+            <Text style={s.actionIcon}>ℹ️</Text>
+            <Text style={s.actionLabel}>Photo Info</Text>
+          </TouchableOpacity>
+          <View style={s.actionDivider} />
+          <TouchableOpacity style={s.actionRow} onPress={onDetectFaces}>
+            <Text style={s.actionIcon}>👤</Text>
+            <Text style={s.actionLabel}>People</Text>
+          </TouchableOpacity>
+          <View style={s.actionDivider} />
+          <TouchableOpacity style={s.actionRow} onPress={onCritique}>
+            <Text style={s.actionIcon}>⭐</Text>
+            <Text style={s.actionLabel}>Critique Photo</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
       {/* ── Critique Sheet ── */}
-      <Modal
-        visible={sheetVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSheetVisible(false)}
-      >
+      <Modal visible={sheetVisible} transparent animationType="slide" onRequestClose={() => setSheetVisible(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setSheetVisible(false)} />
         <View style={s.sheet}>
           <View style={s.handle} />
-
           {result && (
             <>
               <View style={s.scoreRow}>
@@ -263,20 +267,13 @@ export default function PhotoViewerScreen({
                   </Text>
                 </View>
                 <Text style={[s.scoreNum, { color: scoreColor(result.score) }]}>
-                  {result.score}
-                  <Text style={s.scoreOf}>/100</Text>
+                  {result.score}<Text style={s.scoreOf}>/100</Text>
                 </Text>
               </View>
               <View style={s.barBg}>
-                <View style={[s.barFill, {
-                  width: `${result.score}%` as any,
-                  backgroundColor: scoreColor(result.score),
-                }]} />
+                <View style={[s.barFill, { width: `${result.score}%` as any, backgroundColor: scoreColor(result.score) }]} />
               </View>
-
               <ScrollView style={s.list} showsVerticalScrollIndicator={false}>
-
-                {/* 1. Interpretation — always show if any field present */}
                 {(result.mood_desc || result.composition_feel || result.orientation) ? (
                   <Section title={`${MOOD_EMOJI[result.mood ?? ''] ?? '🎨'} Interpretation`}>
                     {result.mood_desc ? <Text style={s.descText}>{result.mood_desc}</Text> : null}
@@ -289,46 +286,34 @@ export default function PhotoViewerScreen({
                     ) : null}
                   </Section>
                 ) : null}
-
-                {/* 2. Technical */}
                 {(result.technical ?? []).length > 0 && (
                   <Section title="🔧 Technical">
                     {(result.technical ?? []).map((i, idx) => <IssueRow key={idx} issue={i} />)}
                   </Section>
                 )}
-
-                {/* 3. Artistic */}
                 {(result.artistic ?? []).length > 0 && (
                   <Section title="🎭 Artistic">
                     {(result.artistic ?? []).map((i, idx) => <IssueRow key={idx} issue={i} />)}
                   </Section>
                 )}
-
-                {/* 4. What Works */}
                 {(result.good_points ?? []).length > 0 && (
                   <Section title="✨ What Works">
                     {(result.good_points ?? []).map((p, idx) => <GoodRow key={idx} text={p} />)}
                   </Section>
                 )}
-
-                {/* 5. Points to Improve */}
                 {(result.improvements ?? []).length > 0 && (
                   <Section title="📈 Points to Improve">
                     {(result.improvements ?? []).map((i, idx) => <IssueRow key={idx} issue={i} />)}
                   </Section>
                 )}
-
-                {/* 6. Overall */}
                 {result.overall ? (
                   <Section title="📷 Overall">
                     <Text style={s.descText}>{result.overall}</Text>
                   </Section>
                 ) : null}
-
               </ScrollView>
             </>
           )}
-
           <TouchableOpacity style={s.closeSheet} onPress={() => setSheetVisible(false)}>
             <Text style={s.closeSheetTxt}>Close</Text>
           </TouchableOpacity>
@@ -336,36 +321,22 @@ export default function PhotoViewerScreen({
       </Modal>
 
       {/* ── Face Sheet ── */}
-      <Modal
-        visible={faceSheetVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setFaceSheetVisible(false)}
-      >
+      <Modal visible={faceSheetVisible} transparent animationType="slide" onRequestClose={() => setFaceSheetVisible(false)}>
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setFaceSheetVisible(false)} />
         <View style={s.sheet}>
           <View style={s.handle} />
           <Text style={s.faceSheetTitle}>
-            {detectedFaces.length === 0
-              ? 'No faces detected'
-              : `${detectedFaces.length} face${detectedFaces.length !== 1 ? 's' : ''} detected`}
+            {detectedFaces.length === 0 ? 'No faces detected' : `${detectedFaces.length} face${detectedFaces.length !== 1 ? 's' : ''} detected`}
           </Text>
           {detectedFaces.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={s.faceRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.faceRow}>
               {detectedFaces.map((face, idx) => (
                 <TouchableOpacity key={idx} style={s.faceCard}
                   onPress={() => { setRenameTarget(face); setRenameText(face.cluster_name ?? ''); }}>
-                  {face.thumbUrl ? (
-                    <Image source={{ uri: face.thumbUrl }} style={s.faceAvatar} />
-                  ) : (
-                    <View style={[s.faceAvatar, s.faceAvatarEmpty]}>
-                      <Text style={s.faceAvatarEmptyText}>👤</Text>
-                    </View>
-                  )}
-                  <Text style={s.faceCardName} numberOfLines={1}>
-                    {face.cluster_name ?? 'Unknown'}
-                  </Text>
+                  {face.thumbUrl
+                    ? <Image source={{ uri: face.thumbUrl }} style={s.faceAvatar} />
+                    : <View style={[s.faceAvatar, s.faceAvatarEmpty]}><Text style={s.faceAvatarEmptyText}>👤</Text></View>}
+                  <Text style={s.faceCardName} numberOfLines={1}>{face.cluster_name ?? 'Unknown'}</Text>
                   <Text style={s.faceCardEdit}>✏️ Rename</Text>
                 </TouchableOpacity>
               ))}
@@ -438,51 +409,56 @@ export default function PhotoViewerScreen({
 }
 
 const s = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
-  image:        { width, height },
+  container: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  image:     { width, height },
 
   closeBtn: {
-    position: 'absolute', top: 48, right: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
+    position: 'absolute', top: 48, left: 20,
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20,
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
   },
   closeText: { color: '#fff', fontSize: 16 },
 
-  menuBtn: {
-    position: 'absolute', top: 48, left: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
+  busyBadge: {
+    position: 'absolute', top: 48, right: 20,
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20,
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
   },
-  menuDots: { color: '#fff', fontSize: 20, lineHeight: 22, fontWeight: '700' },
 
-  menuBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-
-  dropdown: {
-    position: 'absolute', top: 92, left: 20,
-    backgroundColor: 'rgba(20,14,26,0.96)', borderRadius: 14,
-    overflow: 'hidden', minWidth: 190,
-    shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, elevation: 10,
+  // Bottom handle pill
+  bottomHandle: {
+    position: 'absolute', bottom: 24, left: 0, right: 0,
+    alignItems: 'center', paddingVertical: 12,
   },
-  dropdownItem: {
+  handlePill: {
+    width: 44, height: 5, borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+  },
+
+  // Actions sheet
+  actionsSheet: {
+    backgroundColor: '#1a1118', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 0, paddingTop: 12, paddingBottom: 36,
+  },
+  actionRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 14, gap: 12,
+    paddingHorizontal: 24, paddingVertical: 18, gap: 16,
   },
-  dropdownIcon:    { fontSize: 18 },
-  dropdownLabel:   { color: '#e8e0ee', fontSize: 15, fontWeight: '600' },
-  dropdownDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginHorizontal: 12 },
+  actionIcon:    { fontSize: 22 },
+  actionLabel:   { color: '#e8e0ee', fontSize: 17, fontWeight: '600' },
+  actionDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.07)', marginHorizontal: 24 },
 
   overlay: { flex: 1 },
+  handle: {
+    width: 40, height: 4, backgroundColor: '#3d3344', borderRadius: 2,
+    alignSelf: 'center', marginBottom: 22,
+  },
   sheet: {
     backgroundColor: '#1a1118', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     paddingHorizontal: 24, paddingTop: 12, paddingBottom: 40,
     maxHeight: height * 0.72,
   },
-  handle: {
-    width: 40, height: 4, backgroundColor: '#3d3344', borderRadius: 2,
-    alignSelf: 'center', marginBottom: 22,
-  },
 
-  // Critique score
   scoreRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   scoreLbl:    { color: '#9e96a4', fontSize: 14, fontWeight: '600' },
   scoreRating: { fontSize: 18, fontWeight: '700', marginTop: 2 },
@@ -501,13 +477,9 @@ const s = StyleSheet.create({
   checkMark:    { color: '#22c55e', fontSize: 14, marginTop: 1, width: 16, textAlign: 'center' },
   issueMsg:     { color: '#e8e0ee', fontSize: 14, lineHeight: 21, flex: 1 },
 
-  closeSheet:    {
-    marginTop: 18, backgroundColor: '#2a2030', borderRadius: 14,
-    paddingVertical: 14, alignItems: 'center',
-  },
+  closeSheet:    { marginTop: 18, backgroundColor: '#2a2030', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   closeSheetTxt: { color: '#e8e0ee', fontSize: 16, fontWeight: '600' },
 
-  // Face sheet
   faceSheetTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   faceRow:        { gap: 16, paddingHorizontal: 4, paddingBottom: 8 },
   faceCard:       { alignItems: 'center', width: 90 },
@@ -517,20 +489,15 @@ const s = StyleSheet.create({
   faceCardName:   { color: '#e8e0ee', fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 2 },
   faceCardEdit:   { color: '#9e96a4', fontSize: 11, textAlign: 'center' },
 
-  // Info sheet
   infoRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#2a2030' },
   infoIcon:  { fontSize: 16, width: 26 },
   infoLabel: { color: '#9e96a4', fontSize: 13, width: 90 },
   infoValue: { color: '#e8e0ee', fontSize: 13, flex: 1, textAlign: 'right' },
 
-  // Rename modal
   renameOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 32 },
   renameCard:    { backgroundColor: '#1a1118', borderRadius: 16, padding: 24 },
   renameTitle:   { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 14 },
-  renameInput:   {
-    backgroundColor: '#2a2030', borderRadius: 10, padding: 12,
-    fontSize: 15, color: '#e8e0ee', marginBottom: 20,
-  },
+  renameInput:   { backgroundColor: '#2a2030', borderRadius: 10, padding: 12, fontSize: 15, color: '#e8e0ee', marginBottom: 20 },
   renameRow:     { flexDirection: 'row', gap: 10 },
   renameCancel:  { flex: 1, backgroundColor: '#2a2030', borderRadius: 10, padding: 12, alignItems: 'center' },
   renameCancelText: { color: '#9e96a4', fontWeight: '600' },
