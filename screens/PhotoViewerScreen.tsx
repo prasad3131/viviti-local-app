@@ -8,7 +8,7 @@ import SmartImage from '../components/SmartImage';
 import {
   critiquePhoto, CritiqueResult, CritiqueIssue,
   detectPhotoFaces, DetectedFace, setFaceName, faceThumbnailUrl,
-  getPhotoExif, PhotoExif,
+  getPhotoExif, PhotoExif, getPhotos, deletePhotos,
 } from '../lib/api';
 import { Linking } from 'react-native';
 
@@ -113,17 +113,73 @@ export default function PhotoViewerScreen({
   const [exif, setExif]                     = useState<PhotoExif | null>(null);
   const [infoVisible, setInfoVisible]       = useState(false);
 
-  // Swipe-up anywhere on the photo opens the actions sheet
+  // ── Photo navigation ─────────────────────────────────────────────────────────
+  const [photos, setPhotos]   = useState<string[]>([]);
+  const [curIdx, setCurIdx]   = useState(-1);
+  const photosRef             = useRef<string[]>([]);
+  const curIdxRef             = useRef(-1);
+  // Stable ref updated every render so PanResponder can call current navigate fns
+  const navRef = useRef({ goNext: () => {}, goPrev: () => {} });
+
+  const displayName = curIdx >= 0 && photos.length > 0 ? photos[curIdx] : photoName;
+  const hasPrev = curIdx > 0;
+  const hasNext = curIdx >= 0 && curIdx < photos.length - 1;
+
+  // ── PanResponder: swipe-up → actions, swipe-left/right → navigate ─────────
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gs) =>
-        gs.dy < -20 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5,
+        (Math.abs(gs.dx) > 12 && Math.abs(gs.dx) > Math.abs(gs.dy)) ||
+        (gs.dy < -15 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5),
       onPanResponderRelease: (_, gs) => {
-        if (gs.dy < -60) setActionsVisible(true);
+        if (Math.abs(gs.dx) > Math.abs(gs.dy) && Math.abs(gs.dx) > 60) {
+          if (gs.dx < 0) navRef.current.goNext(); else navRef.current.goPrev();
+        } else if (gs.dy < -60) {
+          setActionsVisible(true);
+        }
       },
     })
   ).current;
 
+  // ── Navigation functions ──────────────────────────────────────────────────
+  function navigate(newIdx: number) {
+    curIdxRef.current = newIdx;
+    setCurIdx(newIdx);
+    // Reset all overlay state when changing photo
+    setResult(null); setSheetVisible(false);
+    setDetectedFaces([]); setFaceSheetVisible(false); setAnyFaceNamed(false);
+    setExif(null); setInfoVisible(false);
+    setActionsVisible(false); setRenameTarget(null);
+  }
+
+  function goNext() {
+    const idx = curIdxRef.current;
+    const list = photosRef.current;
+    if (idx >= 0 && idx < list.length - 1) navigate(idx + 1);
+  }
+
+  function goPrev() {
+    const idx = curIdxRef.current;
+    if (idx > 0) navigate(idx - 1);
+  }
+
+  // Keep navRef current every render (called synchronously, not in a hook)
+  navRef.current.goNext = goNext;
+  navRef.current.goPrev = goPrev;
+
+  // ── Load photo list ───────────────────────────────────────────────────────
+  useEffect(() => {
+    getPhotos(folderPath, 0, 500).then(({ photos: list }) => {
+      const names = list.map(p => p.name);
+      const idx = names.indexOf(photoName);
+      photosRef.current = names;
+      curIdxRef.current = idx;
+      setPhotos(names);
+      setCurIdx(idx);
+    }).catch(() => {});
+  }, [folderPath, photoName]);
+
+  // ── BackHandler ───────────────────────────────────────────────────────────
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (actionsVisible) { setActionsVisible(false); return true; }
@@ -137,11 +193,12 @@ export default function PhotoViewerScreen({
     return () => sub.remove();
   }, [actionsVisible, infoVisible, sheetVisible, faceSheetVisible, renameTarget, onBack]);
 
+  // ── Actions ───────────────────────────────────────────────────────────────
   async function onCritique() {
     setActionsVisible(false);
     setCritiquing(true);
     try {
-      const r = await critiquePhoto(folderPath, photoName);
+      const r = await critiquePhoto(folderPath, displayName);
       if (r.error) throw new Error(r.error);
       setResult(r);
       setSheetVisible(true);
@@ -156,7 +213,7 @@ export default function PhotoViewerScreen({
     setActionsVisible(false);
     setFaceDetecting(true);
     try {
-      const rawFaces = await detectPhotoFaces(folderPath, photoName);
+      const rawFaces = await detectPhotoFaces(folderPath, displayName);
       const facesWithUrls: FaceWithUrl[] = await Promise.all(
         rawFaces.map(async f => ({
           ...f,
@@ -170,6 +227,43 @@ export default function PhotoViewerScreen({
     } finally {
       setFaceDetecting(false);
     }
+  }
+
+  async function onShowInfo() {
+    setActionsVisible(false);
+    setInfoLoading(true);
+    try {
+      const data = await getPhotoExif(folderPath, displayName);
+      setExif(data);
+      setInfoVisible(true);
+    } catch {
+      Alert.alert('Info unavailable', 'Could not read photo metadata.');
+    } finally {
+      setInfoLoading(false);
+    }
+  }
+
+  async function onDeletePhoto() {
+    setActionsVisible(false);
+    Alert.alert('Delete Photo', 'This photo will be permanently deleted.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deletePhotos(folderPath, [displayName]);
+            const newList = photosRef.current.filter((_, i) => i !== curIdxRef.current);
+            if (newList.length === 0) { onBack(); return; }
+            const newIdx = Math.min(curIdxRef.current, newList.length - 1);
+            photosRef.current = newList;
+            setPhotos(newList);
+            navigate(newIdx);
+          } catch {
+            Alert.alert('Error', 'Could not delete photo.');
+          }
+        },
+      },
+    ]);
   }
 
   async function handleSaveName() {
@@ -190,20 +284,6 @@ export default function PhotoViewerScreen({
     }
   }
 
-  async function onShowInfo() {
-    setActionsVisible(false);
-    setInfoLoading(true);
-    try {
-      const data = await getPhotoExif(folderPath, photoName);
-      setExif(data);
-      setInfoVisible(true);
-    } catch {
-      Alert.alert('Info unavailable', 'Could not read photo metadata.');
-    } finally {
-      setInfoLoading(false);
-    }
-  }
-
   const busy = critiquing || faceDetecting || infoLoading;
 
   return (
@@ -211,7 +291,7 @@ export default function PhotoViewerScreen({
       <StatusBar hidden />
       <SmartImage
         folderPath={folderPath}
-        photoName={photoName}
+        photoName={displayName}
         style={s.image}
         resizeMode="contain"
       />
@@ -221,11 +301,23 @@ export default function PhotoViewerScreen({
         <Text style={s.closeText}>✕</Text>
       </TouchableOpacity>
 
-      {/* Loading spinner while an action is running */}
+      {/* Loading spinner */}
       {busy && (
         <View style={s.busyBadge}>
           <ActivityIndicator color="#fff" size="small" />
         </View>
+      )}
+
+      {/* Left / right navigation arrows */}
+      {hasPrev && (
+        <TouchableOpacity style={s.arrowLeft} onPress={goPrev} activeOpacity={0.7}>
+          <Text style={s.arrowText}>‹</Text>
+        </TouchableOpacity>
+      )}
+      {hasNext && (
+        <TouchableOpacity style={s.arrowRight} onPress={goNext} activeOpacity={0.7}>
+          <Text style={s.arrowText}>›</Text>
+        </TouchableOpacity>
       )}
 
       {/* Bottom handle — tap or swipe up to open actions */}
@@ -251,6 +343,11 @@ export default function PhotoViewerScreen({
           <TouchableOpacity style={s.actionRow} onPress={onCritique}>
             <Text style={s.actionIcon}>⭐</Text>
             <Text style={s.actionLabel}>Critique Photo</Text>
+          </TouchableOpacity>
+          <View style={s.actionDivider} />
+          <TouchableOpacity style={s.actionRow} onPress={onDeletePhoto}>
+            <Text style={s.actionIcon}>🗑️</Text>
+            <Text style={[s.actionLabel, { color: '#f43f5e' }]}>Delete Photo</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -437,6 +534,23 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20,
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
   },
+
+  // Navigation arrows
+  arrowLeft: {
+    position: 'absolute', left: 0, top: '50%', marginTop: -36,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderTopRightRadius: 36, borderBottomRightRadius: 36,
+    paddingVertical: 22, paddingLeft: 10, paddingRight: 16,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  arrowRight: {
+    position: 'absolute', right: 0, top: '50%', marginTop: -36,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderTopLeftRadius: 36, borderBottomLeftRadius: 36,
+    paddingVertical: 22, paddingRight: 10, paddingLeft: 16,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  arrowText: { color: 'rgba(255,255,255,0.92)', fontSize: 38, fontWeight: '200', lineHeight: 42 },
 
   // Bottom handle pill
   bottomHandle: {
