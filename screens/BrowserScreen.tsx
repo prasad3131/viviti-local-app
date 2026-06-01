@@ -370,9 +370,11 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
       )}
       {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={selecting ? () => setSelected(new Set()) : navigateBack}>
-          <Text style={styles.back}>{selecting ? 'Cancel' : '← Back'}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRow1}>
+          <TouchableOpacity onPress={selecting ? () => setSelected(new Set()) : navigateBack}>
+            <Text style={styles.back}>{selecting ? 'Cancel' : '← Back'}</Text>
+          </TouchableOpacity>
+        </View>
 
         {selecting ? (
           <View style={styles.selectionActions}>
@@ -613,19 +615,21 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    flexDirection: 'column',
     paddingHorizontal: 16, paddingTop: 52, paddingBottom: 10,
     borderBottomWidth: 1, borderBottomColor: '#e0dbe2', backgroundColor: '#fefcfe',
+    gap: 8,
   },
-  back: { color: '#257af0', fontSize: 15, fontWeight: '500', flexShrink: 1, marginRight: 6 },
-  headerActions: { flexDirection: 'row', gap: 5, alignItems: 'center', flexShrink: 1 },
-  selectionActions: { flexDirection: 'row', gap: 6, alignItems: 'center', flexShrink: 1 },
+  headerRow1: { flexDirection: 'row', alignItems: 'center' },
+  back: { color: '#257af0', fontSize: 15, fontWeight: '500' },
+  headerActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  selectionActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   pill: {
     borderWidth: 1, borderColor: '#c0d8fc', borderRadius: 20,
-    paddingHorizontal: 9, paddingVertical: 5, backgroundColor: '#f0f6ff',
+    paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#f0f6ff',
   },
   pillActive: { backgroundColor: '#257af0', borderColor: '#257af0' },
-  pillText: { fontSize: 12, color: '#257af0', fontWeight: '600' },
+  pillText: { fontSize: 13, color: '#257af0', fontWeight: '600' },
   pillActiveText: { color: '#fff' },
   scanBtn: { backgroundColor: '#f5f0ff', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#a855f7' },
   scanBtnText: { color: '#a855f7', fontWeight: '700', fontSize: 13 },
