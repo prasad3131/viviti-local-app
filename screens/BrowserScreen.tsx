@@ -626,18 +626,17 @@ const styles = StyleSheet.create({
   selectionActions: { flexDirection: 'row', gap: 6, alignItems: 'center', flex: 1 },
   pill: {
     flex: 1, borderWidth: 1, borderColor: '#c0d8fc', borderRadius: 20,
-    paddingVertical: 7, backgroundColor: '#f0f6ff',
-    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 7, paddingHorizontal: 4, backgroundColor: '#f0f6ff',
   },
   pillActive: { backgroundColor: '#257af0', borderColor: '#257af0' },
-  pillText: { fontSize: 13, color: '#257af0', fontWeight: '600' },
+  pillText: { fontSize: 13, color: '#257af0', fontWeight: '600', textAlign: 'center' },
   pillActiveText: { color: '#fff' },
-  scanBtn: { flex: 1, backgroundColor: '#f5f0ff', borderRadius: 16, paddingVertical: 7, borderWidth: 1, borderColor: '#a855f7', alignItems: 'center' },
-  scanBtnText: { color: '#a855f7', fontWeight: '700', fontSize: 13 },
-  moveBtn: { flex: 1, backgroundColor: '#257af0', borderRadius: 16, paddingVertical: 7, alignItems: 'center' },
-  moveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  deleteBtn: { flex: 1, backgroundColor: '#fff1f2', borderRadius: 16, paddingVertical: 7, borderWidth: 1, borderColor: '#f43f5e', alignItems: 'center' },
-  deleteBtnText: { color: '#f43f5e', fontWeight: '700', fontSize: 13 },
+  scanBtn: { flex: 1, backgroundColor: '#f5f0ff', borderRadius: 16, paddingVertical: 7, borderWidth: 1, borderColor: '#a855f7' },
+  scanBtnText: { color: '#a855f7', fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  moveBtn: { flex: 1, backgroundColor: '#257af0', borderRadius: 16, paddingVertical: 7 },
+  moveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13, textAlign: 'center' },
+  deleteBtn: { flex: 1, backgroundColor: '#fff1f2', borderRadius: 16, paddingVertical: 7, borderWidth: 1, borderColor: '#f43f5e' },
+  deleteBtnText: { color: '#f43f5e', fontWeight: '700', fontSize: 13, textAlign: 'center' },
 
   // Breadcrumb
   breadcrumbBar: {
