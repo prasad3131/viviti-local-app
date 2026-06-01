@@ -1,4 +1,49 @@
-import { loadSession } from './storage';
+import { loadSession, saveSession } from './storage';
+
+// ─── subnet discovery ────────────────────────────────────────────────────────
+const SCAN_TIMEOUT_MS = 1200;
+const SCAN_BATCH      = 50;
+
+function buildScanList(): string[] {
+  const ips: string[] = [];
+  for (const sub of ['192.168.1', '192.168.0']) {
+    for (let i = 100; i <= 254; i++) ips.push(`${sub}.${i}`);
+  }
+  for (const sub of ['192.168.1', '192.168.0']) {
+    for (let i = 1; i <= 99; i++) ips.push(`${sub}.${i}`);
+  }
+  ips.unshift('10.42.0.1');
+  return ips;
+}
+
+function probeIp(ip: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SCAN_TIMEOUT_MS);
+    fetch(`http://${ip}:3000/health`, { signal: ctrl.signal })
+      .then(r => r.json())
+      .then(data => { clearTimeout(timer); data?.viviti === true ? resolve(ip) : reject(); })
+      .catch(() => { clearTimeout(timer); reject(); });
+  });
+}
+
+// In-session IP override — updated whenever we rediscover a new address
+let _discoveredIp: string | null = null;
+
+async function rediscoverDevice(): Promise<string | null> {
+  const allIps = buildScanList();
+  for (let i = 0; i < allIps.length; i += SCAN_BATCH) {
+    try {
+      const ip = await Promise.any(allIps.slice(i, i + SCAN_BATCH).map(probeIp));
+      _discoveredIp = ip;
+      // Persist so the next app launch uses the updated IP
+      loadSession().then(s => { if (s) saveSession({ ...s, deviceIp: ip }); }).catch(() => {});
+      return ip;
+    } catch { /* batch had no Viviti device — continue */ }
+  }
+  return null;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Photo {
   name: string;
@@ -44,6 +89,7 @@ export interface CritiqueResult {
 }
 
 async function deviceBase(): Promise<string> {
+  if (_discoveredIp) return `http://${_discoveredIp}:3000`;
   const s = await loadSession();
   if (!s?.deviceIp) throw new Error('No device configured. Go to Settings and enter the device IP.');
   return `http://${s.deviceIp}:3000`;
@@ -55,14 +101,24 @@ function fetchWithTimeout(url: string, ms: number, options?: RequestInit): Promi
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-// Authenticated fetch — automatically injects X-Viviti-Key from the saved session
+// Authenticated fetch — automatically injects X-Viviti-Key from the saved session.
+// On TypeError (connection refused / no route = IP changed), silently rediscovers
+// the device and retries once. AbortError (our own timeout) is NOT retried.
 async function deviceFetch(url: string, ms: number, options?: RequestInit): Promise<Response> {
   const s = await loadSession();
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string> || {}),
     ...(s?.deviceKey ? { 'X-Viviti-Key': s.deviceKey } : {}),
   };
-  return fetchWithTimeout(url, ms, { ...options, headers });
+  try {
+    return await fetchWithTimeout(url, ms, { ...options, headers });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw err; // genuine timeout — don't rediscover
+    const newIp = await rediscoverDevice();
+    if (!newIp) throw err;
+    const retryUrl = url.replace(/^http:\/\/[^/]+/, `http://${newIp}:3000`);
+    return fetchWithTimeout(retryUrl, ms, { ...options, headers });
+  }
 }
 
 export async function registerUser(ip: string, name: string, deviceKey: string): Promise<string> {
@@ -125,25 +181,31 @@ export async function getPhotos(
   return res.json();
 }
 
-export async function photoUrl(folderPath: string, name: string): Promise<string> {
+async function resolvedBase(): Promise<{ base: string; key: string }> {
   const s = await loadSession();
-  const base = `http://${s?.deviceIp}:3000`;
-  const key = s?.deviceKey ? `&key=${encodeURIComponent(s.deviceKey)}` : '';
-  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}${key}`;
+  const ip = _discoveredIp || s?.deviceIp;
+  return {
+    base: `http://${ip}:3000`,
+    key: s?.deviceKey ? s.deviceKey : '',
+  };
+}
+
+export async function photoUrl(folderPath: string, name: string): Promise<string> {
+  const { base, key } = await resolvedBase();
+  const k = key ? `&key=${encodeURIComponent(key)}` : '';
+  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}${k}`;
 }
 
 export async function videoUrl(folderPath: string, name: string): Promise<string> {
-  const s = await loadSession();
-  const base = `http://${s?.deviceIp}:3000`;
-  const key = s?.deviceKey ? `&key=${encodeURIComponent(s.deviceKey)}` : '';
-  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}${key}`;
+  const { base, key } = await resolvedBase();
+  const k = key ? `&key=${encodeURIComponent(key)}` : '';
+  return `${base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}${k}`;
 }
 
 export async function thumbUrl(folderPath: string, name: string, size = 200): Promise<string> {
-  const s = await loadSession();
-  const base = `http://${s?.deviceIp}:3000`;
-  const key = s?.deviceKey ? `&key=${encodeURIComponent(s.deviceKey)}` : '';
-  return `${base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}${key}`;
+  const { base, key } = await resolvedBase();
+  const k = key ? `&key=${encodeURIComponent(key)}` : '';
+  return `${base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}${k}`;
 }
 
 export async function uploadPhotos(
@@ -262,10 +324,9 @@ export async function getFacePhotos(id: number): Promise<FacePhoto[]> {
 }
 
 export async function faceThumbnailUrl(filename: string): Promise<string> {
-  const s = await loadSession();
-  const base = `http://${s?.deviceIp}:3000`;
-  const key = s?.deviceKey ? `?key=${encodeURIComponent(s.deviceKey)}` : '';
-  return `${base}/ai/faces/thumb/${encodeURIComponent(filename)}${key}`;
+  const { base, key } = await resolvedBase();
+  const k = key ? `?key=${encodeURIComponent(key)}` : '';
+  return `${base}/ai/faces/thumb/${encodeURIComponent(filename)}${k}`;
 }
 
 export async function triggerFaceBatch(): Promise<void> {
