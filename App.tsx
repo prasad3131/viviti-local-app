@@ -30,6 +30,7 @@ export default function App() {
   const [currentAlbum, setCurrentAlbum]           = useState<Album | null>(null);
   const [prevScreen, setPrevScreen]               = useState<Screen>('dashboard');
   const [wifiSetupIp, setWifiSetupIp]             = useState('');
+  const [browserScrollOffset, setBrowserScrollOffset] = useState(0);
 
   useEffect(() => {
     loadSession().then(s => {
@@ -160,8 +161,10 @@ export default function App() {
     return (
       <BrowserScreen
         username={session.username}
-        onBack={() => setScreen('dashboard')}
+        onBack={() => { setBrowserScrollOffset(0); setScreen('dashboard'); }}
         onOpenPhoto={(folderPath, name) => openPhoto(folderPath, name, 'browser')}
+        initialScrollOffset={browserScrollOffset}
+        onScrollOffsetChange={setBrowserScrollOffset}
       />
     );
   }

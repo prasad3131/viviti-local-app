@@ -29,9 +29,11 @@ interface Props {
   onBack: () => void;
   onOpenPhoto: (folderPath: string, name: string) => void;
   username: string;
+  initialScrollOffset?: number;
+  onScrollOffsetChange?: (offset: number) => void;
 }
 
-export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) {
+export default function BrowserScreen({ onBack, onOpenPhoto, username, initialScrollOffset = 0, onScrollOffsetChange }: Props) {
   const [pathStack, setPathStack] = useState<string[]>([username]);
   const [folders, setFolders] = useState<string[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -61,8 +63,20 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
   const [copying, setCopying] = useState(false);
 
   const offset = useRef(0);
+  const flatListRef = useRef<FlatList>(null);
+  const scrollY = useRef(initialScrollOffset);
   const currentPath = pathStack.join('/');
   const selecting = selected.size > 0;
+
+  // Restore scroll position after the FlatList has rendered its items
+  useEffect(() => {
+    if (initialScrollOffset > 0) {
+      const t = setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: initialScrollOffset, animated: false });
+      }, 80);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   // Swipe-back: ref keeps navigateBack current inside closures
   const navigateBackRef = useRef(navigateBack);
@@ -485,12 +499,17 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
         </ScrollView>
       ) : (
         <FlatList
+          ref={flatListRef}
           data={photos}
           keyExtractor={item => item.name}
           numColumns={PHOTO_COL}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.4}
+          scrollEventThrottle={16}
+          onScroll={e => {
+            scrollY.current = e.nativeEvent.contentOffset.y;
+          }}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={
             folders.length === 0
@@ -507,6 +526,7 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
                 onPress={() => {
                   if (selecting) return toggleSelect(item.name);
                   if (item.isVideo) return handleVideoPress(currentPath, item.name);
+                  onScrollOffsetChange?.(scrollY.current);
                   onOpenPhoto(currentPath, item.name);
                 }}
                 onLongPress={() => toggleSelect(item.name)}
