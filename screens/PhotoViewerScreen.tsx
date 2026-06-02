@@ -306,23 +306,25 @@ export default function PhotoViewerScreen({
   return (
     <View style={s.container} {...panResponder.panHandlers}>
       <StatusBar hidden />
-      {/* Small thumbnail shows instantly from cache while large loads */}
-      <SmartImage
-        folderPath={folderPath}
-        photoName={displayName}
-        style={[s.image, { position: 'absolute' }]}
-        resizeMode="contain"
-        thumb
-        size={200}
-      />
-      <SmartImage
-        folderPath={folderPath}
-        photoName={displayName}
-        style={s.image}
-        resizeMode="contain"
-        thumb
-        size={1080}
-      />
+      {/* Two-stage: blurry thumb shows instantly, 1080px loads on top */}
+      <View style={s.image}>
+        <SmartImage
+          folderPath={folderPath}
+          photoName={displayName}
+          style={{ position: 'absolute', top: 0, left: 0, width, height }}
+          resizeMode="contain"
+          thumb
+          size={200}
+        />
+        <SmartImage
+          folderPath={folderPath}
+          photoName={displayName}
+          style={{ position: 'absolute', top: 0, left: 0, width, height }}
+          resizeMode="contain"
+          thumb
+          size={1080}
+        />
+      </View>
 
       {/* Back button top-left */}
       <TouchableOpacity style={s.closeBtn} onPress={onBack}>
