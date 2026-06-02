@@ -31,6 +31,7 @@ export default function App() {
   const [prevScreen, setPrevScreen]               = useState<Screen>('dashboard');
   const [wifiSetupIp, setWifiSetupIp]             = useState('');
   const [browserScrollOffset, setBrowserScrollOffset] = useState(0);
+  const [browserPhotoList, setBrowserPhotoList]   = useState<string[]>([]);
 
   useEffect(() => {
     loadSession().then(s => {
@@ -109,12 +110,14 @@ export default function App() {
           onOpenPhoto={(folderPath, name) => openPhoto(folderPath, name, 'browser')}
           initialScrollOffset={browserScrollOffset}
           onScrollOffsetChange={setBrowserScrollOffset}
+          onPhotoListChange={setBrowserPhotoList}
         />
         {screen === 'viewer' && (
           <View style={StyleSheet.absoluteFill}>
             <PhotoViewerScreen
               folderPath={currentFolderPath}
               photoName={currentPhoto}
+              photoList={browserPhotoList}
               onBack={() => setScreen('browser')}
             />
           </View>

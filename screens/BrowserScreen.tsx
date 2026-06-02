@@ -31,9 +31,10 @@ interface Props {
   username: string;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
+  onPhotoListChange?: (names: string[]) => void;
 }
 
-export default function BrowserScreen({ onBack, onOpenPhoto, username, initialScrollOffset = 0, onScrollOffsetChange }: Props) {
+export default function BrowserScreen({ onBack, onOpenPhoto, username, initialScrollOffset = 0, onScrollOffsetChange, onPhotoListChange }: Props) {
   const [pathStack, setPathStack] = useState<string[]>([username]);
   const [folders, setFolders] = useState<string[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -108,6 +109,7 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username, initialSc
         setPhotos(photoResult.photos);
         setTotal(photoResult.total);
         offset.current = photoResult.photos.length;
+        onPhotoListChange?.(photoResult.photos.map(p => p.name));
         setLoadError(false);
         setLoading(false);
         return;

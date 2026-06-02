@@ -89,10 +89,11 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 type FaceWithUrl = DetectedFace & { thumbUrl: string | null };
 
 export default function PhotoViewerScreen({
-  folderPath, photoName, onBack, onOpenPeople,
+  folderPath, photoName, photoList, onBack, onOpenPeople,
 }: {
   folderPath: string;
   photoName: string;
+  photoList?: string[]; // pre-loaded list from grid — enables instant navigation
   onBack: () => void;
   onOpenPeople?: () => void;
 }) {
@@ -167,8 +168,16 @@ export default function PhotoViewerScreen({
   navRef.current.goNext = goNext;
   navRef.current.goPrev = goPrev;
 
-  // ── Load photo list ───────────────────────────────────────────────────────
+  // ── Load photo list (use pre-loaded list if available, else fetch) ────────
   useEffect(() => {
+    if (photoList && photoList.length > 0) {
+      const idx = photoList.indexOf(photoName);
+      photosRef.current = photoList;
+      curIdxRef.current = idx;
+      setPhotos(photoList);
+      setCurIdx(idx);
+      return;
+    }
     getPhotos(folderPath, 0, 500).then(({ photos: list }) => {
       const names = list.map(p => p.name);
       const idx = names.indexOf(photoName);
