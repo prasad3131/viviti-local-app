@@ -39,6 +39,7 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username, initialSc
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [foldersOnly, setFoldersOnly] = useState(false);
@@ -96,21 +97,26 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username, initialSc
   // ── Load current folder ────────────────────────────────────────────────────
 
   const load = useCallback(async (path: string, reset = true) => {
-    if (reset) setLoading(true);
-    try {
-      const [folderList, photoResult] = await Promise.all([
-        getFolders(path),
-        foldersOnly ? Promise.resolve({ photos: [], total: 0 }) : getPhotos(path, 0, PAGE),
-      ]);
-      setFolders(folderList);
-      setPhotos(photoResult.photos);
-      setTotal(photoResult.total);
-      offset.current = photoResult.photos.length;
-    } catch {
-      Alert.alert('Error', 'Cannot reach device.');
-    } finally {
-      setLoading(false);
+    if (reset) { setLoading(true); setLoadError(false); }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const [folderList, photoResult] = await Promise.all([
+          getFolders(path),
+          foldersOnly ? Promise.resolve({ photos: [], total: 0 }) : getPhotos(path, 0, PAGE),
+        ]);
+        setFolders(folderList);
+        setPhotos(photoResult.photos);
+        setTotal(photoResult.total);
+        offset.current = photoResult.photos.length;
+        setLoadError(false);
+        setLoading(false);
+        return;
+      } catch {
+        if (attempt === 0) await new Promise(r => setTimeout(r, 1500));
+      }
     }
+    setLoadError(true);
+    setLoading(false);
   }, [foldersOnly]);
 
   useEffect(() => { load(currentPath); }, [currentPath, foldersOnly]);
@@ -460,6 +466,13 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username, initialSc
       {/* ── Content ── */}
       {loading ? (
         <ActivityIndicator color="#257af0" style={{ marginTop: 60 }} />
+      ) : loadError ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>Cannot reach device.</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => load(currentPath)}>
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : activeTag ? (
         loadingTagPhotos ? (
           <ActivityIndicator color="#257af0" style={{ marginTop: 60 }} />
@@ -700,6 +713,10 @@ const styles = StyleSheet.create({
 
   // Empty
   empty: { textAlign: 'center', color: '#9e96a4', fontSize: 14, marginTop: 60, paddingHorizontal: 32 },
+  errorBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  errorText: { color: '#f43f5e', fontSize: 15, marginBottom: 16 },
+  retryBtn: { backgroundColor: '#257af0', borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
+  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   foldersOnlyContent: { paddingBottom: 40 },
 
   // New folder modal
