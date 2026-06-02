@@ -30,14 +30,28 @@ function probeIp(ip: string): Promise<string> {
 // In-session IP override — updated whenever we rediscover a new address
 let _discoveredIp: string | null = null;
 
+// Session cache — AsyncStorage is slow; reading it for every thumbnail URL kills grid perf
+type Session = Awaited<ReturnType<typeof loadSession>>;
+let _sessionCache: Session | undefined = undefined;
+
+async function cachedSession(): Promise<Session> {
+  if (_sessionCache !== undefined) return _sessionCache;
+  _sessionCache = await cachedSession();
+  return _sessionCache;
+}
+
 async function rediscoverDevice(): Promise<string | null> {
   const allIps = buildScanList();
   for (let i = 0; i < allIps.length; i += SCAN_BATCH) {
     try {
       const ip = await Promise.any(allIps.slice(i, i + SCAN_BATCH).map(probeIp));
       _discoveredIp = ip;
-      // Persist so the next app launch uses the updated IP
-      loadSession().then(s => { if (s) saveSession({ ...s, deviceIp: ip }); }).catch(() => {});
+      // Update cache and persist
+      const s = await cachedSession();
+      if (s) {
+        _sessionCache = { ...s, deviceIp: ip };
+        saveSession(_sessionCache).catch(() => {});
+      }
       return ip;
     } catch { /* batch had no Viviti device — continue */ }
   }
@@ -90,7 +104,7 @@ export interface CritiqueResult {
 
 async function deviceBase(): Promise<string> {
   if (_discoveredIp) return `http://${_discoveredIp}:3000`;
-  const s = await loadSession();
+  const s = await cachedSession();
   if (!s?.deviceIp) throw new Error('No device configured. Go to Settings and enter the device IP.');
   return `http://${s.deviceIp}:3000`;
 }
@@ -105,7 +119,7 @@ function fetchWithTimeout(url: string, ms: number, options?: RequestInit): Promi
 // On TypeError (connection refused / no route = IP changed), silently rediscovers
 // the device and retries once. AbortError (our own timeout) is NOT retried.
 async function deviceFetch(url: string, ms: number, options?: RequestInit): Promise<Response> {
-  const s = await loadSession();
+  const s = await cachedSession();
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string> || {}),
     ...(s?.deviceKey ? { 'X-Viviti-Key': s.deviceKey } : {}),
@@ -182,7 +196,7 @@ export async function getPhotos(
 }
 
 async function resolvedBase(): Promise<{ base: string; key: string }> {
-  const s = await loadSession();
+  const s = await cachedSession();
   const ip = _discoveredIp || s?.deviceIp;
   return {
     base: `http://${ip}:3000`,
