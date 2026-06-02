@@ -622,8 +622,8 @@ const styles = StyleSheet.create({
   },
   headerRow1: { flexDirection: 'row', alignItems: 'center' },
   back: { color: '#257af0', fontSize: 15, fontWeight: '500' },
-  headerActions: { flexDirection: 'row', gap: 6, alignItems: 'center', flex: 1 },
-  selectionActions: { flexDirection: 'row', gap: 6, alignItems: 'center', flex: 1 },
+  headerActions: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'stretch' },
+  selectionActions: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'stretch' },
   pill: {
     flex: 1, borderWidth: 1, borderColor: '#c0d8fc', borderRadius: 20,
     paddingVertical: 7, paddingHorizontal: 4, backgroundColor: '#f0f6ff',
