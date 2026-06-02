@@ -65,18 +65,9 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username, initialSc
   const offset = useRef(0);
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(initialScrollOffset);
+  const hasRestoredScroll = useRef(false);
   const currentPath = pathStack.join('/');
   const selecting = selected.size > 0;
-
-  // Restore scroll position after the FlatList has rendered its items
-  useEffect(() => {
-    if (initialScrollOffset > 0) {
-      const t = setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: initialScrollOffset, animated: false });
-      }, 80);
-      return () => clearTimeout(t);
-    }
-  }, []);
 
   // Swipe-back: ref keeps navigateBack current inside closures
   const navigateBackRef = useRef(navigateBack);
@@ -507,8 +498,12 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username, initialSc
           onEndReached={onEndReached}
           onEndReachedThreshold={0.4}
           scrollEventThrottle={16}
-          onScroll={e => {
-            scrollY.current = e.nativeEvent.contentOffset.y;
+          onScroll={e => { scrollY.current = e.nativeEvent.contentOffset.y; }}
+          onContentSizeChange={() => {
+            if (initialScrollOffset > 0 && !hasRestoredScroll.current) {
+              hasRestoredScroll.current = true;
+              flatListRef.current?.scrollToOffset({ offset: initialScrollOffset, animated: false });
+            }
           }}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={
