@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, BackHandler } from 'react-native';
+import { Alert, BackHandler, StyleSheet, View } from 'react-native';
 import { loadSession, Session } from './lib/storage';
 import SetupScreen from './screens/SetupScreen';
 import DashboardScreen from './screens/DashboardScreen';
@@ -99,6 +99,31 @@ export default function App() {
     );
   }
 
+  // Browser keeps BrowserScreen mounted; viewer overlays on top so grid never reloads
+  if (screen === 'browser' || (screen === 'viewer' && prevScreen === 'browser')) {
+    return (
+      <View style={StyleSheet.absoluteFill}>
+        <BrowserScreen
+          username={session.username}
+          onBack={() => { setBrowserScrollOffset(0); setScreen('dashboard'); }}
+          onOpenPhoto={(folderPath, name) => openPhoto(folderPath, name, 'browser')}
+          initialScrollOffset={browserScrollOffset}
+          onScrollOffsetChange={setBrowserScrollOffset}
+        />
+        {screen === 'viewer' && (
+          <View style={StyleSheet.absoluteFill}>
+            <PhotoViewerScreen
+              folderPath={currentFolderPath}
+              photoName={currentPhoto}
+              onBack={() => setScreen('browser')}
+            />
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Standalone viewer from faces / albums / highlights
   if (screen === 'viewer') {
     return (
       <PhotoViewerScreen
@@ -153,18 +178,6 @@ export default function App() {
       <HighlightsScreen
         onBack={() => setScreen('dashboard')}
         onOpenPhoto={(folder, name) => openPhoto(folder, name, 'highlights')}
-      />
-    );
-  }
-
-  if (screen === 'browser') {
-    return (
-      <BrowserScreen
-        username={session.username}
-        onBack={() => { setBrowserScrollOffset(0); setScreen('dashboard'); }}
-        onOpenPhoto={(folderPath, name) => openPhoto(folderPath, name, 'browser')}
-        initialScrollOffset={browserScrollOffset}
-        onScrollOffsetChange={setBrowserScrollOffset}
       />
     );
   }
