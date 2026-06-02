@@ -306,25 +306,14 @@ export default function PhotoViewerScreen({
   return (
     <View style={s.container} {...panResponder.panHandlers}>
       <StatusBar hidden />
-      {/* Two-stage: blurry thumb shows instantly, 1080px loads on top */}
-      <View style={StyleSheet.absoluteFill}>
-        <SmartImage
-          folderPath={folderPath}
-          photoName={displayName}
-          style={StyleSheet.absoluteFill}
-          resizeMode="contain"
-          thumb
-          size={200}
-        />
-        <SmartImage
-          folderPath={folderPath}
-          photoName={displayName}
-          style={StyleSheet.absoluteFill}
-          resizeMode="contain"
-          thumb
-          size={1080}
-        />
-      </View>
+      <SmartImage
+        folderPath={folderPath}
+        photoName={displayName}
+        style={s.image}
+        resizeMode="contain"
+        thumb
+        size={1080}
+      />
 
       {/* Back button top-left */}
       <TouchableOpacity style={s.closeBtn} onPress={onBack}>
