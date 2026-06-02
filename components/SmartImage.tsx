@@ -8,20 +8,21 @@ interface Props {
   style: ImageStyle | ImageStyle[];
   resizeMode?: 'contain' | 'cover' | 'stretch' | 'center';
   thumb?: boolean;
+  size?: number; // thumbnail pixel size (default 200 for grid, 1080 for viewer)
 }
 
-export default function SmartImage({ folderPath, photoName, style, resizeMode = 'cover', thumb = false }: Props) {
-  // Try sync first — works immediately if session is already cached (after first API call).
-  // Falls back to async only on first app load before cache is warm.
+export default function SmartImage({
+  folderPath, photoName, style, resizeMode = 'cover', thumb = false, size = 200,
+}: Props) {
   const [uri, setUri] = useState<string | null>(() =>
-    thumb ? thumbUrlSync(folderPath, photoName, 200) : photoUrlSync(folderPath, photoName),
+    thumb ? thumbUrlSync(folderPath, photoName, size) : photoUrlSync(folderPath, photoName),
   );
 
   useEffect(() => {
-    if (uri) return; // Already resolved synchronously
-    const fn = thumb ? thumbUrl(folderPath, photoName, 200) : photoUrl(folderPath, photoName);
+    if (uri) return;
+    const fn = thumb ? thumbUrl(folderPath, photoName, size) : photoUrl(folderPath, photoName);
     fn.then(setUri).catch(() => {});
-  }, [folderPath, photoName, thumb]);
+  }, [folderPath, photoName, thumb, size]);
 
   if (!uri) return null;
 
