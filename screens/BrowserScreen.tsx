@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
   modalConfirmText: { color: '#fff', fontWeight: '700' },
 
   // Tag filter bar
-  tagBar: { backgroundColor: '#fefcfe', borderBottomWidth: 1, borderBottomColor: '#e0dbe2', flexShrink: 0 },
+  tagBar: { backgroundColor: '#fefcfe', borderBottomWidth: 1, borderBottomColor: '#e0dbe2', flexGrow: 0, flexShrink: 0 },
   tagBarContent: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: 'row', alignItems: 'center' },
   tagPill: {
     borderWidth: 1, borderColor: '#c0d8fc', borderRadius: 20,
