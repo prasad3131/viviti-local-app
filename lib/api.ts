@@ -116,8 +116,8 @@ function fetchWithTimeout(url: string, ms: number, options?: RequestInit): Promi
 }
 
 // Authenticated fetch — automatically injects X-Viviti-Key from the saved session.
-// On TypeError (connection refused / no route = IP changed), silently rediscovers
-// the device and retries once. AbortError (our own timeout) is NOT retried.
+// On network failure or timeout, does a quick health check to decide whether to
+// rediscover (IP changed) or surface the error (device genuinely unreachable/slow).
 async function deviceFetch(url: string, ms: number, options?: RequestInit): Promise<Response> {
   const s = await cachedSession();
   const headers: Record<string, string> = {
@@ -127,7 +127,16 @@ async function deviceFetch(url: string, ms: number, options?: RequestInit): Prom
   try {
     return await fetchWithTimeout(url, ms, { ...options, headers });
   } catch (err: any) {
-    if (err?.name === 'AbortError') throw err; // genuine timeout — don't rediscover
+    if (err?.name === 'AbortError') {
+      // Timeout — could be IP changed (old IP hangs) or device just slow.
+      // Quick 1.5s health ping to distinguish the two cases.
+      const currentBase = _discoveredIp
+        ? `http://${_discoveredIp}:3000`
+        : `http://${s?.deviceIp}:3000`;
+      const alive = await fetchWithTimeout(`${currentBase}/health`, 1500)
+        .then(r => r.ok).catch(() => false);
+      if (alive) throw err; // device responded — it was just slow, surface error
+    }
     const newIp = await rediscoverDevice();
     if (!newIp) throw err;
     const retryUrl = url.replace(/^http:\/\/[^/]+/, `http://${newIp}:3000`);
