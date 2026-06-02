@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Image, ImageStyle } from 'react-native';
+import { Image, ImageStyle, StyleProp } from 'react-native';
 import { photoUrl, thumbUrl, photoUrlSync, thumbUrlSync } from '../lib/api';
 
 interface Props {
   folderPath: string;
   photoName: string;
-  style: ImageStyle | ImageStyle[];
+  style: StyleProp<ImageStyle>;
   resizeMode?: 'contain' | 'cover' | 'stretch' | 'center';
   thumb?: boolean;
-  size?: number; // thumbnail pixel size (default 200 for grid, 1080 for viewer)
+  size?: number;
 }
 
 export default function SmartImage({

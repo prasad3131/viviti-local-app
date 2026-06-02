@@ -12,7 +12,7 @@ import {
 } from '../lib/api';
 import { Linking } from 'react-native';
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get('screen'); // use 'screen' to cover status bar area too
 
 const SEV_COLOR: Record<string, string> = {
   high: '#f43f5e', medium: '#f97316', low: '#eab308',
@@ -307,11 +307,11 @@ export default function PhotoViewerScreen({
     <View style={s.container} {...panResponder.panHandlers}>
       <StatusBar hidden />
       {/* Two-stage: blurry thumb shows instantly, 1080px loads on top */}
-      <View style={s.image}>
+      <View style={StyleSheet.absoluteFill}>
         <SmartImage
           folderPath={folderPath}
           photoName={displayName}
-          style={{ position: 'absolute', top: 0, left: 0, width, height }}
+          style={StyleSheet.absoluteFill}
           resizeMode="contain"
           thumb
           size={200}
@@ -319,7 +319,7 @@ export default function PhotoViewerScreen({
         <SmartImage
           folderPath={folderPath}
           photoName={displayName}
-          style={{ position: 'absolute', top: 0, left: 0, width, height }}
+          style={StyleSheet.absoluteFill}
           resizeMode="contain"
           thumb
           size={1080}
@@ -559,7 +559,7 @@ export default function PhotoViewerScreen({
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  container: { flex: 1, backgroundColor: '#000' },
   image:     { width, height },
 
   closeBtn: {
