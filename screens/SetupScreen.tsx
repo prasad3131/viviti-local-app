@@ -3,7 +3,7 @@ import {
   Text, TextInput, TouchableOpacity, StyleSheet, View,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
-import { registerUser, getDeviceHealth } from '../lib/api';
+import { registerUser, getDeviceHealth, invalidateSessionCache } from '../lib/api';
 import { saveSession } from '../lib/storage';
 
 const SCAN_TIMEOUT_MS = 1200;
@@ -100,6 +100,7 @@ export default function SetupScreen({
 
       const resolvedName = await registerUser(trimmedIp, trimmedName, key);
       await saveSession({ deviceIp: trimmedIp, deviceName: 'Viviti Local', username: resolvedName, deviceKey: key });
+      invalidateSessionCache();
 
       // Register with cloud for heartbeat monitoring (optional — fails silently)
       const trimmedEmail = email.trim().toLowerCase();

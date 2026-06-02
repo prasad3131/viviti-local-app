@@ -36,8 +36,14 @@ let _sessionCache: Session | undefined = undefined;
 
 async function cachedSession(): Promise<Session> {
   if (_sessionCache !== undefined) return _sessionCache;
-  _sessionCache = await cachedSession();
+  _sessionCache = await loadSession();
   return _sessionCache;
+}
+
+// Call this whenever a new session is saved outside api.ts (e.g. SetupScreen)
+export function invalidateSessionCache() {
+  _sessionCache = undefined;
+  _discoveredIp = null;
 }
 
 async function rediscoverDevice(): Promise<string | null> {
