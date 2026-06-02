@@ -219,6 +219,28 @@ async function resolvedBase(): Promise<{ base: string; key: string }> {
   };
 }
 
+// Synchronous URL builders — only work after the session is cached (i.e. after
+// the first API call). SmartImage uses these to avoid an async round-trip per cell.
+function syncBase(): { base: string; key: string } | null {
+  const ip = _discoveredIp || _sessionCache?.deviceIp;
+  if (!ip) return null;
+  return { base: `http://${ip}:3000`, key: _sessionCache?.deviceKey ?? '' };
+}
+
+export function thumbUrlSync(folderPath: string, name: string, size = 200): string | null {
+  const b = syncBase();
+  if (!b) return null;
+  const k = b.key ? `&key=${encodeURIComponent(b.key)}` : '';
+  return `${b.base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}${k}`;
+}
+
+export function photoUrlSync(folderPath: string, name: string): string | null {
+  const b = syncBase();
+  if (!b) return null;
+  const k = b.key ? `&key=${encodeURIComponent(b.key)}` : '';
+  return `${b.base}/photos/file?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}${k}`;
+}
+
 export async function photoUrl(folderPath: string, name: string): Promise<string> {
   const { base, key } = await resolvedBase();
   const k = key ? `&key=${encodeURIComponent(key)}` : '';
