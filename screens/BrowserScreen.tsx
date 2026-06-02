@@ -368,49 +368,48 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username }: Props) 
       {pathStack.length > 1 && (
         <View style={styles.swipeEdge} {...swipeEdge.panHandlers} />
       )}
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View style={styles.headerRow1}>
-          <TouchableOpacity onPress={selecting ? () => setSelected(new Set()) : navigateBack}>
-            <Text style={styles.back}>{selecting ? 'Cancel' : '← Back'}</Text>
+      {/* ── Header top: back / cancel ── */}
+      <View style={styles.headerTop}>
+        <TouchableOpacity onPress={selecting ? () => setSelected(new Set()) : navigateBack}>
+          <Text style={styles.back}>{selecting ? 'Cancel' : '← Back'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Header actions: pills / selection buttons ── */}
+      {selecting ? (
+        <View style={styles.selectionActions}>
+          <TouchableOpacity style={styles.scanBtn} onPress={handleScanFaces}>
+            <Text style={styles.scanBtnText}>👤 Scan</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.moveBtn} onPress={openCopyPicker}>
+            <Text style={styles.moveBtnText}>Move ({selected.size})</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+            <Text style={styles.deleteBtnText}>Delete</Text>
           </TouchableOpacity>
         </View>
-
-        {selecting ? (
-          <View style={styles.selectionActions}>
-            <TouchableOpacity style={styles.scanBtn} onPress={handleScanFaces}>
-              <Text style={styles.scanBtnText}>👤 Scan</Text>
+      ) : (
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.pill, foldersOnly && styles.pillActive]}
+            onPress={() => setFoldersOnly(f => !f)}
+          >
+            <Text style={[styles.pillText, foldersOnly && styles.pillActiveText]}>
+              📁 Folders
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.pill} onPress={() => { setNewFolderName(''); setShowNewFolder(true); }}>
+            <Text style={styles.pillText}>+ New</Text>
+          </TouchableOpacity>
+          {!foldersOnly && (
+            <TouchableOpacity style={styles.pill} onPress={handleUpload} disabled={uploading}>
+              {uploading
+                ? <ActivityIndicator size="small" color="#257af0" />
+                : <Text style={styles.pillText}>↑ Upload</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.moveBtn} onPress={openCopyPicker}>
-              <Text style={styles.moveBtnText}>Move ({selected.size})</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-              <Text style={styles.deleteBtnText}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={[styles.pill, foldersOnly && styles.pillActive]}
-              onPress={() => setFoldersOnly(f => !f)}
-            >
-              <Text style={[styles.pillText, foldersOnly && styles.pillActiveText]}>
-                📁 Folders
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.pill} onPress={() => { setNewFolderName(''); setShowNewFolder(true); }}>
-              <Text style={styles.pillText}>+ New</Text>
-            </TouchableOpacity>
-            {!foldersOnly && (
-              <TouchableOpacity style={styles.pill} onPress={handleUpload} disabled={uploading}>
-                {uploading
-                  ? <ActivityIndicator size="small" color="#257af0" />
-                  : <Text style={styles.pillText}>↑ Upload</Text>}
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
+          )}
+        </View>
+      )}
 
       {/* ── Breadcrumb ── */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.breadcrumbBar}>
@@ -614,16 +613,24 @@ const styles = StyleSheet.create({
   swipeEdge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 24, zIndex: 10 },
 
   // Header
-  header: {
-    flexDirection: 'column',
-    paddingHorizontal: 16, paddingTop: 52, paddingBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: '#e0dbe2', backgroundColor: '#fefcfe',
-    gap: 8,
+  headerTop: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingTop: 52, paddingBottom: 8,
+    backgroundColor: '#fefcfe',
   },
-  headerRow1: { flexDirection: 'row', alignItems: 'center' },
   back: { color: '#257af0', fontSize: 15, fontWeight: '500' },
-  headerActions: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'stretch' },
-  selectionActions: { flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'stretch' },
+  headerActions: {
+    flexDirection: 'row', gap: 6, alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 10,
+    backgroundColor: '#fefcfe',
+    borderBottomWidth: 1, borderBottomColor: '#e0dbe2',
+  },
+  selectionActions: {
+    flexDirection: 'row', gap: 6, alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 10,
+    backgroundColor: '#fefcfe',
+    borderBottomWidth: 1, borderBottomColor: '#e0dbe2',
+  },
   pill: {
     flex: 1, borderWidth: 1, borderColor: '#c0d8fc', borderRadius: 20,
     paddingVertical: 7, paddingHorizontal: 4, backgroundColor: '#f0f6ff',
@@ -695,11 +702,11 @@ const styles = StyleSheet.create({
   modalConfirmText: { color: '#fff', fontWeight: '700' },
 
   // Tag filter bar
-  tagBar: { backgroundColor: '#fefcfe', borderBottomWidth: 1, borderBottomColor: '#e0dbe2', flexGrow: 0 },
-  tagBarContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row' },
+  tagBar: { backgroundColor: '#fefcfe', borderBottomWidth: 1, borderBottomColor: '#e0dbe2', flexShrink: 0 },
+  tagBarContent: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: 'row', alignItems: 'center' },
   tagPill: {
     borderWidth: 1, borderColor: '#c0d8fc', borderRadius: 20,
-    paddingHorizontal: 11, paddingVertical: 5, backgroundColor: '#f0f6ff',
+    paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#f0f6ff',
   },
   tagPillActive: { backgroundColor: '#257af0', borderColor: '#257af0' },
   tagPillText: { fontSize: 12, color: '#257af0', fontWeight: '600' },
