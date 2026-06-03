@@ -679,7 +679,8 @@ const styles = StyleSheet.create({
   // Breadcrumb
   breadcrumbBar: {
     backgroundColor: '#f5f3f7', borderBottomWidth: 1, borderBottomColor: '#e0dbe2',
-    paddingHorizontal: 16, paddingVertical: 8, flexGrow: 0,
+    paddingHorizontal: 16, paddingVertical: 8, flexGrow: 0, flexShrink: 0,
+    width: '100%',
   },
   crumb: { fontSize: 13, color: '#257af0' },
   crumbSep: { fontSize: 13, color: '#c0bcc4' },
