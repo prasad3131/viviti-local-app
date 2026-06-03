@@ -32,7 +32,7 @@ export default function SmartImage({
 
   return (
     <Image
-      source={{ uri, cache: 'force-cache' }}
+      source={{ uri, cache: size > 400 ? 'default' : 'force-cache' }}
       style={style as any}
       resizeMode={resizeMode}
     />
