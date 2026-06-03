@@ -227,11 +227,15 @@ function syncBase(): { base: string; key: string } | null {
   return { base: `http://${ip}:3000`, key: _sessionCache?.deviceKey ?? '' };
 }
 
+// v=2 busts the phone HTTP cache for thumbnails generated before fit:inside fix
+const THUMB_VERSION = 2;
+
 export function thumbUrlSync(folderPath: string, name: string, size = 200): string | null {
   const b = syncBase();
   if (!b) return null;
   const k = b.key ? `&key=${encodeURIComponent(b.key)}` : '';
-  return `${b.base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}${k}`;
+  const v = size > 400 ? `&v=${THUMB_VERSION}` : '';
+  return `${b.base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}${k}${v}`;
 }
 
 export function photoUrlSync(folderPath: string, name: string): string | null {
@@ -256,7 +260,8 @@ export async function videoUrl(folderPath: string, name: string): Promise<string
 export async function thumbUrl(folderPath: string, name: string, size = 200): Promise<string> {
   const { base, key } = await resolvedBase();
   const k = key ? `&key=${encodeURIComponent(key)}` : '';
-  return `${base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}${k}`;
+  const v = size > 400 ? `&v=${THUMB_VERSION}` : '';
+  return `${base}/photos/thumb?path=${encodeURIComponent(folderPath)}&name=${encodeURIComponent(name)}&size=${size}${k}${v}`;
 }
 
 export async function uploadPhotos(
