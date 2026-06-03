@@ -19,7 +19,11 @@ export default function SmartImage({
   );
 
   useEffect(() => {
-    if (uri) return;
+    // Always re-derive the URL when photo changes — sync first, async fallback
+    const syncUri = thumb
+      ? thumbUrlSync(folderPath, photoName, size)
+      : photoUrlSync(folderPath, photoName);
+    if (syncUri) { setUri(syncUri); return; }
     const fn = thumb ? thumbUrl(folderPath, photoName, size) : photoUrl(folderPath, photoName);
     fn.then(setUri).catch(() => {});
   }, [folderPath, photoName, thumb, size]);
