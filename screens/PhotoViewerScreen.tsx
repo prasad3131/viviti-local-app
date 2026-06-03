@@ -170,7 +170,7 @@ export default function PhotoViewerScreen({
 
   // ── Load photo list (use pre-loaded list if available, else fetch) ────────
   useEffect(() => {
-    if (photoList && photoList.length > 0) {
+    if (photoList && photoList.length > 0 && photoList.includes(photoName)) {
       const idx = photoList.indexOf(photoName);
       photosRef.current = photoList;
       curIdxRef.current = idx;
@@ -178,6 +178,7 @@ export default function PhotoViewerScreen({
       setCurIdx(idx);
       return;
     }
+    // Fall back to full API fetch (photo not in pre-loaded list)
     getPhotos(folderPath, 0, 500).then(({ photos: list }) => {
       const names = list.map(p => p.name);
       const idx = names.indexOf(photoName);

@@ -537,6 +537,7 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username, initialSc
                   if (selecting) return toggleSelect(item.name);
                   if (item.isVideo) return handleVideoPress(currentPath, item.name);
                   onScrollOffsetChange?.(scrollY.current);
+                  onPhotoListChange?.(photos.map(p => p.name));
                   onOpenPhoto(currentPath, item.name);
                 }}
                 onLongPress={() => toggleSelect(item.name)}
