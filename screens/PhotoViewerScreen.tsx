@@ -9,6 +9,7 @@ import {
   critiquePhoto, CritiqueResult, CritiqueIssue,
   detectPhotoFaces, DetectedFace, setFaceName, faceThumbnailUrl,
   getPhotoExif, PhotoExif, getPhotos, deletePhotos, deleteFaceCluster,
+  thumbUrl,
 } from '../lib/api';
 import { Linking } from 'react-native';
 
@@ -167,6 +168,17 @@ export default function PhotoViewerScreen({
   // Keep navRef current every render (called synchronously, not in a hook)
   navRef.current.goNext = goNext;
   navRef.current.goPrev = goPrev;
+
+  // Prefetch adjacent thumbnails so next/prev loads instantly
+  useEffect(() => {
+    if (curIdx < 0 || photos.length === 0) return;
+    const toPreload = [curIdx + 1, curIdx + 2, curIdx - 1].filter(i => i >= 0 && i < photos.length);
+    toPreload.forEach(i => {
+      thumbUrl(folderPath, photos[i], 1080)
+        .then(url => Image.prefetch(url))
+        .catch(() => {});
+    });
+  }, [curIdx, photos, folderPath]);
 
   // ── Load photo list (use pre-loaded list if available, else fetch) ────────
   useEffect(() => {
