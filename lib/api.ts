@@ -83,7 +83,7 @@ export interface PhotoExif {
 export interface Album { key: string; cover: string; count: number; }
 export interface AlbumPhoto { photo_path: string; folder: string; name: string; }
 export interface Highlight { photo_path: string; folder: string; name: string; }
-export interface SearchPhoto { photo_path: string; folder: string; name: string; matched_objects: string[]; }
+export interface SearchPhoto { photo_path: string; folder: string; name: string; matched_objects: string[]; person?: string; }
 export interface ObjectLabel { label: string; count: number; }
 
 export interface CritiqueIssue {

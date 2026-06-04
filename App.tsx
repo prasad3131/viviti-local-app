@@ -33,6 +33,7 @@ export default function App() {
   const [wifiSetupIp, setWifiSetupIp]             = useState('');
   const [browserScrollOffset, setBrowserScrollOffset] = useState(0);
   const [browserPhotoList, setBrowserPhotoList]   = useState<string[]>([]);
+  const [searchFrom, setSearchFrom]               = useState<Screen>('dashboard');
 
   useEffect(() => {
     loadSession().then(s => {
@@ -49,13 +50,13 @@ export default function App() {
       if (screen === 'album-photos') { setScreen('albums');    return true; }
       if (screen === 'albums')       { setScreen('dashboard'); return true; }
       if (screen === 'highlights')   { setScreen('dashboard'); return true; }
-      if (screen === 'search')       { setScreen('dashboard'); return true; }
+      if (screen === 'search')       { setScreen(searchFrom);  return true; }
       if (screen === 'browser')      { setScreen('dashboard'); return true; }
       if (screen === 'wifi-setup')   { setScreen(session ? 'dashboard' : 'setup'); return true; }
       return false; // dashboard/setup: allow default back (app to background)
     });
     return () => sub.remove();
-  }, [screen, prevScreen, session]);
+  }, [screen, prevScreen, session, searchFrom]);
 
   function handleSetupDone() {
     loadSession().then(s => { setSession(s); setScreen('dashboard'); });
@@ -110,6 +111,7 @@ export default function App() {
           username={session.username}
           onBack={() => { setBrowserScrollOffset(0); setScreen('dashboard'); }}
           onOpenPhoto={(folderPath, name) => openPhoto(folderPath, name, 'browser')}
+          onOpenSearch={() => { setSearchFrom('browser'); setScreen('search'); }}
           initialScrollOffset={browserScrollOffset}
           onScrollOffsetChange={setBrowserScrollOffset}
           onPhotoListChange={setBrowserPhotoList}
@@ -190,7 +192,7 @@ export default function App() {
   if (screen === 'search') {
     return (
       <SearchScreen
-        onBack={() => setScreen('dashboard')}
+        onBack={() => setScreen(searchFrom)}
         onOpenPhoto={(folder, name) => openPhoto(folder, name, 'search')}
       />
     );
@@ -204,7 +206,7 @@ export default function App() {
       onOpenPeople={() => setScreen('faces')}
       onOpenAlbums={() => setScreen('albums')}
       onOpenHighlights={() => setScreen('highlights')}
-      onOpenSearch={() => setScreen('search')}
+      onOpenSearch={() => { setSearchFrom('dashboard'); setScreen('search'); }}
       onChangeWifi={() => { setWifiSetupIp(session.deviceIp); setScreen('wifi-setup'); }}
     />
   );

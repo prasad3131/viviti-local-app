@@ -28,13 +28,14 @@ const PAGE = 20;
 interface Props {
   onBack: () => void;
   onOpenPhoto: (folderPath: string, name: string) => void;
+  onOpenSearch?: () => void;
   username: string;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onPhotoListChange?: (names: string[]) => void;
 }
 
-export default function BrowserScreen({ onBack, onOpenPhoto, username, initialScrollOffset = 0, onScrollOffsetChange, onPhotoListChange }: Props) {
+export default function BrowserScreen({ onBack, onOpenPhoto, onOpenSearch, username, initialScrollOffset = 0, onScrollOffsetChange, onPhotoListChange }: Props) {
   const [pathStack, setPathStack] = useState<string[]>([username]);
   const [folders, setFolders] = useState<string[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -381,11 +382,16 @@ export default function BrowserScreen({ onBack, onOpenPhoto, username, initialSc
       {pathStack.length > 1 && (
         <View style={styles.swipeEdge} {...swipeEdge.panHandlers} />
       )}
-      {/* ── Header top: back / cancel ── */}
+      {/* ── Header top: back / cancel + search ── */}
       <View style={styles.headerTop}>
         <TouchableOpacity onPress={selecting ? () => setSelected(new Set()) : navigateBack}>
           <Text style={styles.back}>{selecting ? 'Cancel' : '← Back'}</Text>
         </TouchableOpacity>
+        {!selecting && onOpenSearch && (
+          <TouchableOpacity onPress={onOpenSearch} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.searchIcon}>🔍</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Header actions: pills / selection buttons ── */}
@@ -645,11 +651,12 @@ const styles = StyleSheet.create({
 
   // Header
   headerTop: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingTop: 52, paddingBottom: 8,
     backgroundColor: '#fefcfe',
   },
   back: { color: '#257af0', fontSize: 15, fontWeight: '500' },
+  searchIcon: { fontSize: 18 },
   headerActions: {
     flexDirection: 'row', gap: 6, alignItems: 'center',
     paddingHorizontal: 16, paddingBottom: 10,

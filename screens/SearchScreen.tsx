@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, Dimensions, TextInput, ScrollView, Keyboard,
 } from 'react-native';
-import { searchPhotos, getObjectLabels, SearchPhoto } from '../lib/api';
+import { searchPhotos, getObjectLabels, getFaces, SearchPhoto } from '../lib/api';
 import SmartImage from '../components/SmartImage';
 
 const COL = 3;
@@ -23,12 +23,16 @@ export default function SearchScreen({ onBack, onOpenPhoto }: Props) {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [labels, setLabels]   = useState<string[]>([]);
+  const [people, setPeople]   = useState<string[]>([]);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load the most common detected labels once, as extra suggestion chips.
+  // Load the most common detected labels + named people once, as suggestion chips.
   useEffect(() => {
     getObjectLabels()
       .then(objs => setLabels(objs.slice(0, 12).map(o => o.label)))
+      .catch(() => {});
+    getFaces()
+      .then(fs => setPeople(fs.map(f => f.name).filter((n): n is string => !!n)))
       .catch(() => {});
   }, []);
 
@@ -69,7 +73,7 @@ export default function SearchScreen({ onBack, onOpenPhoto }: Props) {
           style={styles.input}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search photos — dog, food, beach…"
+          placeholder="Search photos & people — dog, food, Prasad…"
           placeholderTextColor="#9e96a4"
           autoCorrect={false}
           autoCapitalize="none"
@@ -86,6 +90,18 @@ export default function SearchScreen({ onBack, onOpenPhoto }: Props) {
       {/* Suggestion chips — shown until the user has results */}
       {!searched && (
         <ScrollView style={styles.chipsWrap} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
+          {people.length > 0 && (
+            <>
+              <Text style={styles.chipsLabel}>People</Text>
+              <View style={styles.chipRow}>
+                {people.map(p => (
+                  <TouchableOpacity key={p} style={[styles.chip, styles.chipPerson]} onPress={() => pick(p)}>
+                    <Text style={styles.chipPersonText}>👤 {p}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
           <Text style={styles.chipsLabel}>Try searching for</Text>
           <View style={styles.chipRow}>
             {SUGGESTIONS.map(s => (
@@ -136,6 +152,11 @@ export default function SearchScreen({ onBack, onOpenPhoto }: Props) {
             renderItem={({ item }) => (
               <TouchableOpacity onPress={() => onOpenPhoto(item.folder, item.name)} activeOpacity={0.8}>
                 <SmartImage folderPath={item.folder} photoName={item.name} style={styles.thumb} thumb />
+                {item.person ? (
+                  <View style={styles.personBadge}>
+                    <Text style={styles.personBadgeText} numberOfLines={1}>👤 {item.person}</Text>
+                  </View>
+                ) : null}
               </TouchableOpacity>
             )}
           />
@@ -172,6 +193,15 @@ const styles = StyleSheet.create({
   chip: { backgroundColor: '#eaf2ff', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 9 },
   chipAlt: { backgroundColor: '#f0edf2' },
   chipText: { color: '#257af0', fontSize: 14, fontWeight: '600' },
+  chipPerson: { backgroundColor: '#f3eaff' },
+  chipPersonText: { color: '#6428b4', fontSize: 14, fontWeight: '600' },
+
+  personBadge: {
+    position: 'absolute', left: 4, bottom: 4, right: 4,
+    backgroundColor: 'rgba(100,40,180,0.82)', borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  personBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
 
   privacyNote: { fontSize: 12, color: '#9e96a4', textAlign: 'center', marginTop: 32, lineHeight: 18 },
 
