@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, TouchableOpacity, Text, StyleSheet,
   Dimensions, StatusBar, Modal, ScrollView, ActivityIndicator,
-  Alert, TextInput, Image, BackHandler, PanResponder,
+  Alert, TextInput, Image, BackHandler,
 } from 'react-native';
-import SmartImage from '../components/SmartImage';
+import ZoomableImage from '../components/ZoomableImage';
 import {
   critiquePhoto, CritiqueResult, CritiqueIssue,
   detectPhotoFaces, DetectedFace, setFaceName, faceThumbnailUrl,
@@ -120,28 +120,10 @@ export default function PhotoViewerScreen({
   const [curIdx, setCurIdx]   = useState(-1);
   const photosRef             = useRef<string[]>([]);
   const curIdxRef             = useRef(-1);
-  // Stable ref updated every render so PanResponder can call current navigate fns
-  const navRef = useRef({ goNext: () => {}, goPrev: () => {} });
 
   const displayName = curIdx >= 0 && photos.length > 0 ? photos[curIdx] : photoName;
   const hasPrev = curIdx > 0;
   const hasNext = curIdx >= 0 && curIdx < photos.length - 1;
-
-  // ── PanResponder: swipe-up → actions, swipe-left/right → navigate ─────────
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gs) =>
-        (Math.abs(gs.dx) > 12 && Math.abs(gs.dx) > Math.abs(gs.dy)) ||
-        (gs.dy < -15 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5),
-      onPanResponderRelease: (_, gs) => {
-        if (Math.abs(gs.dx) > Math.abs(gs.dy) && Math.abs(gs.dx) > 60) {
-          if (gs.dx < 0) navRef.current.goNext(); else navRef.current.goPrev();
-        } else if (gs.dy < -60) {
-          setActionsVisible(true);
-        }
-      },
-    })
-  ).current;
 
   // ── Navigation functions ──────────────────────────────────────────────────
   function navigate(newIdx: number) {
@@ -164,10 +146,6 @@ export default function PhotoViewerScreen({
     const idx = curIdxRef.current;
     if (idx > 0) navigate(idx - 1);
   }
-
-  // Keep navRef current every render (called synchronously, not in a hook)
-  navRef.current.goNext = goNext;
-  navRef.current.goPrev = goPrev;
 
   // Prefetch adjacent thumbnails so next/prev loads instantly
   useEffect(() => {
@@ -326,15 +304,14 @@ export default function PhotoViewerScreen({
   const busy = critiquing || faceDetecting || infoLoading;
 
   return (
-    <View style={s.container} {...panResponder.panHandlers}>
+    <View style={s.container}>
       <StatusBar hidden />
-      <SmartImage
+      <ZoomableImage
         folderPath={folderPath}
         photoName={displayName}
-        style={s.image}
-        resizeMode="contain"
-        thumb
-        size={1080}
+        onSwipeLeft={goNext}
+        onSwipeRight={goPrev}
+        onSwipeUp={() => setActionsVisible(true)}
       />
 
       {/* Back button top-left */}
