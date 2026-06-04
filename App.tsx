@@ -10,6 +10,7 @@ import FacePhotosScreen from './screens/FacePhotosScreen';
 import AlbumsScreen from './screens/AlbumsScreen';
 import AlbumPhotosScreen from './screens/AlbumPhotosScreen';
 import HighlightsScreen from './screens/HighlightsScreen';
+import SearchScreen from './screens/SearchScreen';
 import WiFiSetupScreen from './screens/WiFiSetupScreen';
 import { FaceCluster, Album } from './lib/api';
 
@@ -18,7 +19,7 @@ type Screen =
   | 'browser' | 'viewer'
   | 'faces' | 'face-photos'
   | 'albums' | 'album-photos'
-  | 'highlights'
+  | 'highlights' | 'search'
   | 'wifi-setup';
 
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
       if (screen === 'album-photos') { setScreen('albums');    return true; }
       if (screen === 'albums')       { setScreen('dashboard'); return true; }
       if (screen === 'highlights')   { setScreen('dashboard'); return true; }
+      if (screen === 'search')       { setScreen('dashboard'); return true; }
       if (screen === 'browser')      { setScreen('dashboard'); return true; }
       if (screen === 'wifi-setup')   { setScreen(session ? 'dashboard' : 'setup'); return true; }
       return false; // dashboard/setup: allow default back (app to background)
@@ -185,6 +187,15 @@ export default function App() {
     );
   }
 
+  if (screen === 'search') {
+    return (
+      <SearchScreen
+        onBack={() => setScreen('dashboard')}
+        onOpenPhoto={(folder, name) => openPhoto(folder, name, 'search')}
+      />
+    );
+  }
+
   return (
     <DashboardScreen
       session={session}
@@ -193,6 +204,7 @@ export default function App() {
       onOpenPeople={() => setScreen('faces')}
       onOpenAlbums={() => setScreen('albums')}
       onOpenHighlights={() => setScreen('highlights')}
+      onOpenSearch={() => setScreen('search')}
       onChangeWifi={() => { setWifiSetupIp(session.deviceIp); setScreen('wifi-setup'); }}
     />
   );

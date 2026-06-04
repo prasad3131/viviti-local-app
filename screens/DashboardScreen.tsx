@@ -18,6 +18,7 @@ export default function DashboardScreen({
   onOpenPeople,
   onOpenAlbums,
   onOpenHighlights,
+  onOpenSearch,
   onChangeWifi,
 }: {
   session: Session;
@@ -26,6 +27,7 @@ export default function DashboardScreen({
   onOpenPeople: () => void;
   onOpenAlbums: () => void;
   onOpenHighlights: () => void;
+  onOpenSearch: () => void;
   onChangeWifi: () => void;
 }) {
   const [status, setStatus] = useState<any>(null);
@@ -95,6 +97,10 @@ export default function DashboardScreen({
           <TouchableOpacity style={styles.btn} onPress={onOpenPhotos}>
             <Text style={styles.btnText}>Browse Photos</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={[styles.searchBtn]} onPress={onOpenSearch}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <Text style={styles.searchPlaceholder}>Search photos — dog, food, beach…</Text>
+          </TouchableOpacity>
           <View style={styles.btnRow}>
             <TouchableOpacity style={[styles.btnHalf, styles.btnSecondary]} onPress={onOpenPeople}>
               <Text style={styles.btnSecondaryText}>👤 People</Text>
@@ -134,6 +140,12 @@ const styles = StyleSheet.create({
   barFill: { height: '100%', backgroundColor: '#257af0', borderRadius: 4 },
   storageText: { fontSize: 13, color: '#6b6070' },
   btn: { backgroundColor: '#257af0', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
+  searchBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10,
+    backgroundColor: '#f0edf2', borderRadius: 10, paddingHorizontal: 14, height: 48,
+  },
+  searchIcon: { fontSize: 15 },
+  searchPlaceholder: { color: '#9e96a4', fontSize: 15 },
   btnRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   btnHalf: { flex: 1, padding: 16, alignItems: 'center', borderRadius: 10 },
   btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },

@@ -83,6 +83,8 @@ export interface PhotoExif {
 export interface Album { key: string; cover: string; count: number; }
 export interface AlbumPhoto { photo_path: string; folder: string; name: string; }
 export interface Highlight { photo_path: string; folder: string; name: string; }
+export interface SearchPhoto { photo_path: string; folder: string; name: string; matched_objects: string[]; }
+export interface ObjectLabel { label: string; count: number; }
 
 export interface CritiqueIssue {
   sev: 'high' | 'medium' | 'low' | 'none';
@@ -428,6 +430,26 @@ export async function getHighlights(): Promise<Highlight[]> {
   if (!res.ok) return [];
   const { highlights } = await res.json();
   return highlights ?? [];
+}
+
+// Object Search — searches on-device object labels (no photo leaves the device)
+export async function searchPhotos(query: string, path?: string): Promise<SearchPhoto[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const base = await deviceBase();
+  const p = path ? `&path=${encodeURIComponent(path)}` : '';
+  const res = await deviceFetch(`${base}/ai/search?q=${encodeURIComponent(q)}${p}`, 12000);
+  if (!res.ok) return [];
+  const { photos } = await res.json();
+  return photos ?? [];
+}
+
+export async function getObjectLabels(): Promise<ObjectLabel[]> {
+  const base = await deviceBase();
+  const res = await deviceFetch(`${base}/ai/objects`, 12000);
+  if (!res.ok) return [];
+  const { objects } = await res.json();
+  return objects ?? [];
 }
 
 export async function detectPhotoFaces(
