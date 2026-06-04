@@ -15,6 +15,12 @@ function dist(touches: any[]) {
   return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
 }
 
+// numberActiveTouches is the reliable cross-platform finger count; touches[]
+// can briefly lag on Android, so take the larger of the two.
+function touchCount(e: any, gs: any) {
+  return Math.max(e?.nativeEvent?.touches?.length || 0, gs?.numberActiveTouches || 0);
+}
+
 /**
  * Full-screen zoomable photo. Dependency-free (Animated + PanResponder).
  *  - pinch to zoom, drag to pan while zoomed
@@ -70,10 +76,13 @@ export default function ZoomableImage({
 
   function animateTo(s: number, x: number, y: number) {
     cur.current = { scale: s, x, y };
+    // useNativeDriver MUST be false here: we also drive these same values with
+    // setValue() during pinch/pan. Mixing a native-driven animation with JS
+    // setValue() on one node silently stops visual updates (and warns).
     Animated.parallel([
-      Animated.spring(scale,  { toValue: s, useNativeDriver: true, bounciness: 0 }),
-      Animated.spring(transX, { toValue: x, useNativeDriver: true, bounciness: 0 }),
-      Animated.spring(transY, { toValue: y, useNativeDriver: true, bounciness: 0 }),
+      Animated.spring(scale,  { toValue: s, useNativeDriver: false, bounciness: 0 }),
+      Animated.spring(transX, { toValue: x, useNativeDriver: false, bounciness: 0 }),
+      Animated.spring(transY, { toValue: y, useNativeDriver: false, bounciness: 0 }),
     ]).start();
   }
 
@@ -83,20 +92,22 @@ export default function ZoomableImage({
       // win their own area, so this doesn't block them).
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (e, gs) => {
-        if (e.nativeEvent.touches.length === 2) return true;        // pinch
+        if (touchCount(e, gs) >= 2) return true;                    // pinch
         if (cur.current.scale > 1.01) return true;                  // pan while zoomed
         // At 1x: only take over for a deliberate swipe (lets taps/double-taps pass)
         return (Math.abs(gs.dx) > TAP_SLOP && Math.abs(gs.dx) > Math.abs(gs.dy)) ||
                (gs.dy < -15 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5);
       },
+      // Don't let a parent/native view steal an in-progress pinch.
+      onPanResponderTerminationRequest: () => false,
 
-      onPanResponderGrant: (e) => {
+      onPanResponderGrant: (e, gs) => {
         const g = gesture.current;
         g.moved = 0;
         g.startScale = cur.current.scale;
         g.startX = cur.current.x;
         g.startY = cur.current.y;
-        g.pinching = e.nativeEvent.touches.length === 2;
+        g.pinching = touchCount(e, gs) >= 2;
         if (g.pinching) g.startDist = dist(e.nativeEvent.touches);
       },
 
@@ -105,7 +116,7 @@ export default function ZoomableImage({
         const touches = e.nativeEvent.touches;
         g.moved = Math.max(g.moved, Math.abs(gs.dx) + Math.abs(gs.dy));
 
-        if (touches.length === 2) {
+        if (touchCount(e, gs) >= 2 && touches.length >= 2) {
           // Pinch — scale around centre
           if (!g.pinching) { g.pinching = true; g.startDist = dist(touches); g.startScale = cur.current.scale; }
           const ratio = dist(touches) / (g.startDist || 1);
