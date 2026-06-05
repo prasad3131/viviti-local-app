@@ -11,6 +11,7 @@ import AlbumsScreen from './screens/AlbumsScreen';
 import AlbumPhotosScreen from './screens/AlbumPhotosScreen';
 import HighlightsScreen from './screens/HighlightsScreen';
 import SearchScreen from './screens/SearchScreen';
+import VideoPlayerScreen from './screens/VideoPlayerScreen';
 import WiFiSetupScreen from './screens/WiFiSetupScreen';
 import { FaceCluster, Album } from './lib/api';
 
@@ -19,7 +20,7 @@ type Screen =
   | 'browser' | 'viewer'
   | 'faces' | 'face-photos'
   | 'albums' | 'album-photos'
-  | 'highlights' | 'search'
+  | 'highlights' | 'search' | 'video'
   | 'wifi-setup';
 
 export default function App() {
@@ -51,6 +52,7 @@ export default function App() {
       if (screen === 'albums')       { setScreen('dashboard'); return true; }
       if (screen === 'highlights')   { setScreen('dashboard'); return true; }
       if (screen === 'search')       { setScreen(searchFrom);  return true; }
+      if (screen === 'video')        { setScreen(prevScreen);  return true; }
       if (screen === 'browser')      { setScreen('dashboard'); return true; }
       if (screen === 'wifi-setup')   { setScreen(session ? 'dashboard' : 'setup'); return true; }
       return false; // dashboard/setup: allow default back (app to background)
@@ -67,6 +69,13 @@ export default function App() {
     setCurrentPhoto(name);
     setPrevScreen(from);
     setScreen('viewer');
+  }
+
+  function openVideo(folderPath: string, name: string, from: Screen = 'browser') {
+    setCurrentFolderPath(folderPath);
+    setCurrentPhoto(name);
+    setPrevScreen(from);
+    setScreen('video');
   }
 
   if (screen === 'loading') return null;
@@ -111,6 +120,7 @@ export default function App() {
           username={session.username}
           onBack={() => { setBrowserScrollOffset(0); setScreen('dashboard'); }}
           onOpenPhoto={(folderPath, name) => openPhoto(folderPath, name, 'browser')}
+          onOpenVideo={(folderPath, name) => openVideo(folderPath, name, 'browser')}
           onOpenSearch={() => { setSearchFrom('browser'); setScreen('search'); }}
           initialScrollOffset={browserScrollOffset}
           onScrollOffsetChange={setBrowserScrollOffset}
@@ -194,6 +204,16 @@ export default function App() {
       <SearchScreen
         onBack={() => setScreen(searchFrom)}
         onOpenPhoto={(folder, name) => openPhoto(folder, name, 'search')}
+      />
+    );
+  }
+
+  if (screen === 'video') {
+    return (
+      <VideoPlayerScreen
+        folderPath={currentFolderPath}
+        videoName={currentPhoto}
+        onBack={() => setScreen(prevScreen)}
       />
     );
   }

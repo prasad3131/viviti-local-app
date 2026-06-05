@@ -28,6 +28,7 @@ const PAGE = 20;
 interface Props {
   onBack: () => void;
   onOpenPhoto: (folderPath: string, name: string) => void;
+  onOpenVideo?: (folderPath: string, name: string) => void;
   onOpenSearch?: () => void;
   username: string;
   initialScrollOffset?: number;
@@ -35,7 +36,7 @@ interface Props {
   onPhotoListChange?: (names: string[]) => void;
 }
 
-export default function BrowserScreen({ onBack, onOpenPhoto, onOpenSearch, username, initialScrollOffset = 0, onScrollOffsetChange, onPhotoListChange }: Props) {
+export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpenSearch, username, initialScrollOffset = 0, onScrollOffsetChange, onPhotoListChange }: Props) {
   const [pathStack, setPathStack] = useState<string[]>([username]);
   const [folders, setFolders] = useState<string[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -191,13 +192,12 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenSearch, usern
 
   // ── Video open ────────────────────────────────────────────────────────────
 
-  async function handleVideoPress(folderPath: string, name: string) {
-    try {
-      const url = await videoUrl(folderPath, name);
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert('Error', 'Could not open video.');
-    }
+  function handleVideoPress(folderPath: string, name: string) {
+    if (onOpenVideo) { onOpenVideo(folderPath, name); return; }
+    // Fallback (no in-app player wired): open externally
+    videoUrl(folderPath, name).then(Linking.openURL).catch(() =>
+      Alert.alert('Error', 'Could not open video.'),
+    );
   }
 
   // ── Scan faces for selected photos ────────────────────────────────────────

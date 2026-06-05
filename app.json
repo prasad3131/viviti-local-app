@@ -37,7 +37,8 @@
         {
           "photosPermission": "Viviti needs access to your photos and videos to upload them."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "extra": {
       "eas": {
