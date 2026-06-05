@@ -17,8 +17,12 @@ export default function SmartImage({
   const [uri, setUri] = useState<string | null>(() =>
     thumb ? thumbUrlSync(folderPath, photoName, size) : photoUrlSync(folderPath, photoName),
   );
+  // If a thumbnail fails to load (e.g. a bad/empty server thumb), fall back to
+  // the original photo once so the image never stays blank.
+  const [fellBack, setFellBack] = useState(false);
 
   useEffect(() => {
+    setFellBack(false);
     // Always re-derive the URL when photo changes — sync first, async fallback
     const syncUri = thumb
       ? thumbUrlSync(folderPath, photoName, size)
@@ -28,13 +32,22 @@ export default function SmartImage({
     fn.then(setUri).catch(() => {});
   }, [folderPath, photoName, thumb, size]);
 
+  function handleError() {
+    if (fellBack || !thumb) return;        // only a thumb can fall back, and only once
+    setFellBack(true);
+    const syncP = photoUrlSync(folderPath, photoName);
+    if (syncP) { setUri(syncP); return; }
+    photoUrl(folderPath, photoName).then(setUri).catch(() => {});
+  }
+
   if (!uri) return null;
 
   return (
     <Image
-      source={{ uri, cache: size > 400 ? 'default' : 'force-cache' }}
+      source={{ uri, cache: fellBack ? 'reload' : size > 400 ? 'default' : 'force-cache' }}
       style={style as any}
       resizeMode={resizeMode}
+      onError={handleError}
     />
   );
 }
