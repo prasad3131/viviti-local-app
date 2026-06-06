@@ -260,18 +260,28 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpen
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
       quality: 1,
     });
     if (result.canceled) return;
     setUploading(true);
     try {
-      await uploadPhotos(currentPath, result.assets.map(a => ({
-        uri: a.uri,
-        name: a.fileName || `photo_${Date.now()}.jpg`,
-        type: a.mimeType || 'image/jpeg',
-      })));
+      const VIDEO_EXT = /\.(mp4|mov|m4v|3gp|avi|mkv|webm)$/i;
+      await uploadPhotos(currentPath, result.assets.map(a => {
+        const isVideo = a.type === 'video'
+          || /^video\//i.test(a.mimeType || '')
+          || VIDEO_EXT.test(a.fileName || a.uri || '');
+        const srcExt = (a.fileName || a.uri || '').split('.').pop()?.toLowerCase() || '';
+        const ext = isVideo
+          ? (VIDEO_EXT.test('.' + srcExt) ? srcExt : (a.mimeType?.split('/')[1] || 'mp4'))
+          : 'jpg';
+        return {
+          uri: a.uri,
+          name: a.fileName || `${isVideo ? 'video' : 'photo'}_${Date.now()}.${ext}`,
+          type: a.mimeType || (isVideo ? 'video/mp4' : 'image/jpeg'),
+        };
+      }));
       load(currentPath);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Upload failed.');

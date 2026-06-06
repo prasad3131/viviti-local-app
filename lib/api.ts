@@ -271,13 +271,14 @@ export async function uploadPhotos(
   assets: Array<{ uri: string; name: string; type: string }>,
 ): Promise<void> {
   const base = await deviceBase();
-  // Upload one file at a time — 90s per file avoids timeout on large photos
+  // Upload one file at a time. Videos are large, so allow up to 5 min per file.
   for (const asset of assets) {
     const form = new FormData();
     form.append('photos', { uri: asset.uri, name: asset.name, type: asset.type } as any);
+    const isVideo = /^video\//i.test(asset.type) || /\.(mp4|mov|m4v|3gp|avi|mkv|webm)$/i.test(asset.name);
     const res = await deviceFetch(
       `${base}/photos/upload?path=${encodeURIComponent(folderPath)}`,
-      90_000,
+      isVideo ? 300_000 : 90_000,
       { method: 'POST', body: form },
     );
     if (!res.ok) throw new Error(`Failed to upload ${asset.name}`);

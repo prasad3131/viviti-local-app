@@ -99,9 +99,15 @@ export default function PhotosScreen({
 
     setUploading(true);
     try {
+      const VIDEO_EXT = /\.(mp4|mov|m4v|3gp|avi|mkv|webm)$/i;
       const assets = result.assets.map(a => {
-        const isVideo = a.type === 'video';
-        const ext = isVideo ? (a.mimeType?.split('/')[1] || 'mp4') : 'jpg';
+        const isVideo = a.type === 'video'
+          || /^video\//i.test(a.mimeType || '')
+          || VIDEO_EXT.test(a.fileName || a.uri || '');
+        const srcExt = (a.fileName || a.uri || '').split('.').pop()?.toLowerCase() || '';
+        const ext = isVideo
+          ? (VIDEO_EXT.test('.' + srcExt) ? srcExt : (a.mimeType?.split('/')[1] || 'mp4'))
+          : 'jpg';
         return {
           uri: a.uri,
           name: a.fileName || `${isVideo ? 'video' : 'photo'}_${Date.now()}.${ext}`,
