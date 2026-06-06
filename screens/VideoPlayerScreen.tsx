@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, TouchableOpacity, TouchableWithoutFeedback, Text, StyleSheet,
-  ActivityIndicator, StatusBar, PanResponder,
+  View, TouchableOpacity, Text, StyleSheet, ActivityIndicator,
+  StatusBar, PanResponder, Animated, Dimensions,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { photoUrlSync, videoUrl } from '../lib/api';
 
+const { width, height } = Dimensions.get('screen');
 const SPEEDS = [0.15, 0.25, 0.5, 1, 1.5, 2, 4, 8];
+const MAX_SCALE = 4;
+const TAP_SLOP = 12;
 
 function fmt(t: number) {
   if (!isFinite(t) || t < 0) t = 0;
@@ -41,10 +44,16 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
 
   useEffect(() => {
     if (!uri) return;
-    try { player.replace(uri); player.play(); } catch {}
+    (async () => {
+      try {
+        // replaceAsync avoids the main-thread load warning; fall back if missing.
+        if (typeof (player as any).replaceAsync === 'function') await (player as any).replaceAsync(uri);
+        else player.replace(uri);
+        player.play();
+      } catch {}
+    })();
   }, [uri, player]);
 
-  // Poll player state for the progress bar / play state
   useEffect(() => {
     const id = setInterval(() => {
       try {
@@ -56,11 +65,10 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
     return () => clearInterval(id);
   }, [player]);
 
-  // Auto-hide controls a few seconds after playback resumes
   function scheduleHide() {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
-      try { if (player.playing) setShow(false); } catch {}
+      try { if (player.playing) { setShow(false); setShowSpeed(false); } } catch {}
     }, 3000);
   }
   useEffect(() => {
@@ -69,7 +77,6 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
   }, [show, playing]);
 
   function reveal() { setShow(true); scheduleHide(); }
-  function toggleControls() { setShow(s => !s); }
 
   function togglePlay() {
     try {
@@ -116,26 +123,85 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
     onPanResponderMove:  e => setVolTo(e.nativeEvent.locationX),
   })).current;
 
+  // ── Zoom / pan / tap-to-toggle on the video ──
+  const scale = useRef(new Animated.Value(1)).current;
+  const tX = useRef(new Animated.Value(0)).current;
+  const tY = useRef(new Animated.Value(0)).current;
+  const z = useRef({ scale: 1, x: 0, y: 0 });
+  const g = useRef({ pinching: false, startDist: 0, startScale: 1, startX: 0, startY: 0, moved: 0 });
+
+  const dist = (ts: any[]) => Math.hypot(ts[0].pageX - ts[1].pageX, ts[0].pageY - ts[1].pageY);
+  function clampPan() {
+    const s = z.current.scale;
+    const mx = (width * (s - 1)) / 2;
+    const my = (height * (s - 1)) / 2;
+    z.current.x = Math.max(-mx, Math.min(mx, z.current.x));
+    z.current.y = Math.max(-my, Math.min(my, z.current.y));
+    tX.setValue(z.current.x); tY.setValue(z.current.y);
+  }
+  function resetZoom() {
+    z.current = { scale: 1, x: 0, y: 0 };
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, useNativeDriver: false, bounciness: 0 }),
+      Animated.spring(tX, { toValue: 0, useNativeDriver: false, bounciness: 0 }),
+      Animated.spring(tY, { toValue: 0, useNativeDriver: false, bounciness: 0 }),
+    ]).start();
+  }
+
+  const gesture = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (e, gs) =>
+      e.nativeEvent.touches.length === 2 ||
+      z.current.scale > 1.01 ||
+      Math.abs(gs.dx) + Math.abs(gs.dy) > TAP_SLOP,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: e => {
+      g.current.moved = 0;
+      g.current.startScale = z.current.scale;
+      g.current.startX = z.current.x;
+      g.current.startY = z.current.y;
+      g.current.pinching = e.nativeEvent.touches.length === 2;
+      if (g.current.pinching) g.current.startDist = dist(e.nativeEvent.touches);
+    },
+    onPanResponderMove: (e, gs) => {
+      const ts = e.nativeEvent.touches;
+      g.current.moved = Math.max(g.current.moved, Math.abs(gs.dx) + Math.abs(gs.dy));
+      if (ts.length === 2) {
+        if (!g.current.pinching) { g.current.pinching = true; g.current.startDist = dist(ts); g.current.startScale = z.current.scale; }
+        const s = Math.max(1, Math.min(MAX_SCALE, g.current.startScale * dist(ts) / (g.current.startDist || 1)));
+        z.current.scale = s; scale.setValue(s); clampPan();
+      } else if (z.current.scale > 1.01 && !g.current.pinching) {
+        z.current.x = g.current.startX + gs.dx;
+        z.current.y = g.current.startY + gs.dy;
+        clampPan();
+      }
+    },
+    onPanResponderRelease: () => {
+      if (g.current.pinching) {
+        g.current.pinching = false;
+        if (z.current.scale <= 1.01) resetZoom(); else clampPan();
+        return;
+      }
+      if (g.current.moved < TAP_SLOP) setShow(s => !s);  // tap toggles controls
+    },
+  })).current;
+
   const pct = dur > 0 ? (cur / dur) * 100 : 0;
 
   return (
     <View style={s.container}>
       <StatusBar hidden />
 
-      <TouchableWithoutFeedback onPress={toggleControls}>
-        <View style={StyleSheet.absoluteFill}>
-          {uri ? (
-            <VideoView
-              player={player}
-              style={StyleSheet.absoluteFill}
-              contentFit="contain"
-              nativeControls={false}
-            />
-          ) : (
-            <View style={s.center}><ActivityIndicator color="#fff" size="large" /></View>
-          )}
-        </View>
-      </TouchableWithoutFeedback>
+      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale }, { translateX: tX }, { translateY: tY }] }]}>
+        {uri ? (
+          <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />
+        ) : (
+          <View style={s.center}><ActivityIndicator color="#fff" size="large" /></View>
+        )}
+      </Animated.View>
+
+      {/* Gesture catcher sits ON TOP of the native video so taps/pinch register */}
+      <View style={StyleSheet.absoluteFill} {...gesture.panHandlers} />
 
       {show && (
         <>
@@ -143,12 +209,10 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
             <Text style={s.closeText}>✕</Text>
           </TouchableOpacity>
 
-          {/* Center play/pause */}
           <TouchableOpacity style={s.centerBtn} onPress={togglePlay} activeOpacity={0.8}>
             <Text style={s.centerIcon}>{playing ? '⏸' : '▶'}</Text>
           </TouchableOpacity>
 
-          {/* Speed menu — opens above the controls */}
           {showSpeed && (
             <View style={s.speedMenu}>
               {SPEEDS.map(sp => (
@@ -163,7 +227,6 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
             </View>
           )}
 
-          {/* Bottom controls — volume + speed sit just above the progress bar */}
           <View style={s.bottom}>
             <View style={s.controlsRow}>
               <Text style={s.volIcon}>{vol === 0 ? '🔇' : '🔊'}</Text>
@@ -217,18 +280,10 @@ const s = StyleSheet.create({
   },
   centerIcon: { color: '#fff', fontSize: 28 },
 
-  bottom: {
-    position: 'absolute', left: 0, right: 0, bottom: 28,
-    paddingHorizontal: 16,
-  },
-  controlsRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14,
-  },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 28, paddingHorizontal: 16 },
+  controlsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   volIcon: { fontSize: 16 },
-  volTrack: {
-    flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-  },
+  volTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center' },
   volFill: { position: 'absolute', left: 0, height: 4, borderRadius: 2, backgroundColor: '#fff' },
   speedBtn: {
     backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 6,
@@ -251,14 +306,8 @@ const s = StyleSheet.create({
 
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   time: { color: '#fff', fontSize: 12, width: 42, textAlign: 'center' },
-  seekTrack: {
-    flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-  },
+  seekTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center' },
   seekFill: { position: 'absolute', left: 0, height: 4, borderRadius: 2, backgroundColor: '#257af0' },
 
-  knob: {
-    position: 'absolute', width: 13, height: 13, borderRadius: 7,
-    backgroundColor: '#fff', marginLeft: -6, top: -4.5,
-  },
+  knob: { position: 'absolute', width: 13, height: 13, borderRadius: 7, backgroundColor: '#fff', marginLeft: -6, top: -4.5 },
 });
