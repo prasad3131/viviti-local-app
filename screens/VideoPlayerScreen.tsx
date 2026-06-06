@@ -6,7 +6,7 @@ import {
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { photoUrlSync, videoUrl } from '../lib/api';
 
-const SPEEDS = [1, 1.5, 2, 0.5];
+const SPEEDS = [0.15, 0.25, 0.5, 1, 1.5, 2, 4, 8];
 
 function fmt(t: number) {
   if (!isFinite(t) || t < 0) t = 0;
@@ -36,6 +36,7 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
   const [vol, setVol]   = useState(1);
   const [rate, setRate] = useState(1);
   const [show, setShow] = useState(true);
+  const [showSpeed, setShowSpeed] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -77,10 +78,10 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
     } catch {}
   }
 
-  function cycleSpeed() {
-    const next = SPEEDS[(SPEEDS.indexOf(rate) + 1) % SPEEDS.length];
-    try { player.playbackRate = next; } catch {}
-    setRate(next);
+  function setSpeed(r: number) {
+    try { player.playbackRate = r; } catch {}
+    setRate(r);
+    setShowSpeed(false);
     reveal();
   }
 
@@ -147,6 +148,21 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
             <Text style={s.centerIcon}>{playing ? '⏸' : '▶'}</Text>
           </TouchableOpacity>
 
+          {/* Speed menu — opens above the controls */}
+          {showSpeed && (
+            <View style={s.speedMenu}>
+              {SPEEDS.map(sp => (
+                <TouchableOpacity
+                  key={sp}
+                  style={[s.speedItem, sp === rate && s.speedItemActive]}
+                  onPress={() => setSpeed(sp)}
+                >
+                  <Text style={[s.speedItemText, sp === rate && s.speedItemTextActive]}>{sp}x</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           {/* Bottom controls — volume + speed sit just above the progress bar */}
           <View style={s.bottom}>
             <View style={s.controlsRow}>
@@ -159,7 +175,7 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
                 <View style={[s.volFill, { width: `${vol * 100}%` }]} />
                 <View style={[s.knob, { left: `${vol * 100}%` }]} />
               </View>
-              <TouchableOpacity style={s.speedBtn} onPress={cycleSpeed}>
+              <TouchableOpacity style={s.speedBtn} onPress={() => { setShowSpeed(v => !v); reveal(); }}>
                 <Text style={s.speedText}>{rate}x</Text>
               </TouchableOpacity>
             </View>
@@ -219,6 +235,19 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 5, minWidth: 46, alignItems: 'center',
   },
   speedText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+
+  speedMenu: {
+    position: 'absolute', left: 16, right: 16, bottom: 108,
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.8)', borderRadius: 12, padding: 12,
+  },
+  speedItem: {
+    backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8,
+    paddingHorizontal: 14, paddingVertical: 8, minWidth: 52, alignItems: 'center',
+  },
+  speedItemActive: { backgroundColor: '#257af0' },
+  speedItemText: { color: '#e8e0ee', fontSize: 14, fontWeight: '600' },
+  speedItemTextActive: { color: '#fff', fontWeight: '800' },
 
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   time: { color: '#fff', fontSize: 12, width: 42, textAlign: 'center' },

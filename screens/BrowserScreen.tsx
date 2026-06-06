@@ -253,14 +253,24 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpen
 
   // ── Upload ─────────────────────────────────────────────────────────────────
 
-  async function handleUpload() {
+  function handleUpload() {
+    // Let the user filter what the picker shows: photos, videos, or both.
+    Alert.alert('Upload', 'What would you like to upload?', [
+      { text: '📷 Photos', onPress: () => pickAndUpload(['images']) },
+      { text: '🎬 Videos', onPress: () => pickAndUpload(['videos']) },
+      { text: 'Both',       onPress: () => pickAndUpload(['images', 'videos']) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  async function pickAndUpload(mediaTypes: ImagePicker.MediaType[]) {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow photo library access to upload photos.');
+      Alert.alert('Permission needed', 'Allow photo library access to upload.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
+      mediaTypes,
       allowsMultipleSelection: true,
       quality: 1,
     });
