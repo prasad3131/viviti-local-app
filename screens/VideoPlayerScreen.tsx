@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, TouchableOpacity, Text, StyleSheet, ActivityIndicator,
-  StatusBar, PanResponder, Animated, Dimensions,
+  StatusBar, PanResponder, Animated, Dimensions, Platform,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { photoUrlSync, videoUrl } from '../lib/api';
+import { photoUrlSync, videoUrl, getPhotos } from '../lib/api';
 
 const { width, height } = Dimensions.get('screen');
 const SPEEDS = [0.15, 0.25, 0.5, 1, 1.5, 2, 4, 8];
@@ -25,11 +25,26 @@ interface Props {
 }
 
 export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Props) {
+  const [name, setName] = useState(videoName);
+  useEffect(() => { setName(videoName); }, [videoName]);
+
   const [uri, setUri] = useState<string | null>(() => photoUrlSync(folderPath, videoName));
   useEffect(() => {
-    if (uri) return;
-    videoUrl(folderPath, videoName).then(setUri).catch(() => {});
-  }, [folderPath, videoName, uri]);
+    const u = photoUrlSync(folderPath, name);
+    if (u) { setUri(u); return; }
+    videoUrl(folderPath, name).then(setUri).catch(() => {});
+  }, [folderPath, name]);
+
+  // Folder's videos — enables next/prev
+  const [videos, setVideos] = useState<string[]>([]);
+  useEffect(() => {
+    getPhotos(folderPath, 0, 500)
+      .then(({ photos }) => setVideos(photos.filter(p => p.isVideo).map(p => p.name)))
+      .catch(() => {});
+  }, [folderPath]);
+  const idx = videos.indexOf(name);
+  const hasPrev = idx > 0;
+  const hasNext = idx >= 0 && idx < videos.length - 1;
 
   const player = useVideoPlayer(null, p => { p.loop = false; });
 
@@ -46,9 +61,13 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
     if (!uri) return;
     (async () => {
       try {
-        // replaceAsync avoids the main-thread load warning; fall back if missing.
-        if (typeof (player as any).replaceAsync === 'function') await (player as any).replaceAsync(uri);
-        else player.replace(uri);
+        // On Android, replace() is reliable. replaceAsync avoids an iOS-only
+        // main-thread warning, so use it only there.
+        if (Platform.OS === 'ios' && typeof (player as any).replaceAsync === 'function') {
+          await (player as any).replaceAsync(uri);
+        } else {
+          player.replace(uri);
+        }
         player.play();
       } catch {}
     })();
@@ -123,7 +142,7 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
     onPanResponderMove:  e => setVolTo(e.nativeEvent.locationX),
   })).current;
 
-  // ── Zoom / pan / tap-to-toggle on the video ──
+  // ── Zoom / pan / tap-to-toggle ──
   const scale = useRef(new Animated.Value(1)).current;
   const tX = useRef(new Animated.Value(0)).current;
   const tY = useRef(new Animated.Value(0)).current;
@@ -132,9 +151,9 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
 
   const dist = (ts: any[]) => Math.hypot(ts[0].pageX - ts[1].pageX, ts[0].pageY - ts[1].pageY);
   function clampPan() {
-    const s = z.current.scale;
-    const mx = (width * (s - 1)) / 2;
-    const my = (height * (s - 1)) / 2;
+    const sc = z.current.scale;
+    const mx = (width * (sc - 1)) / 2;
+    const my = (height * (sc - 1)) / 2;
     z.current.x = Math.max(-mx, Math.min(mx, z.current.x));
     z.current.y = Math.max(-my, Math.min(my, z.current.y));
     tX.setValue(z.current.x); tY.setValue(z.current.y);
@@ -147,6 +166,9 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
       Animated.spring(tY, { toValue: 0, useNativeDriver: false, bounciness: 0 }),
     ]).start();
   }
+
+  function goPrev() { if (hasPrev) { resetZoom(); setName(videos[idx - 1]); reveal(); } }
+  function goNext() { if (hasNext) { resetZoom(); setName(videos[idx + 1]); reveal(); } }
 
   const gesture = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -168,8 +190,8 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
       g.current.moved = Math.max(g.current.moved, Math.abs(gs.dx) + Math.abs(gs.dy));
       if (ts.length === 2) {
         if (!g.current.pinching) { g.current.pinching = true; g.current.startDist = dist(ts); g.current.startScale = z.current.scale; }
-        const s = Math.max(1, Math.min(MAX_SCALE, g.current.startScale * dist(ts) / (g.current.startDist || 1)));
-        z.current.scale = s; scale.setValue(s); clampPan();
+        const sc = Math.max(1, Math.min(MAX_SCALE, g.current.startScale * dist(ts) / (g.current.startDist || 1)));
+        z.current.scale = sc; scale.setValue(sc); clampPan();
       } else if (z.current.scale > 1.01 && !g.current.pinching) {
         z.current.x = g.current.startX + gs.dx;
         z.current.y = g.current.startY + gs.dy;
@@ -182,7 +204,7 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
         if (z.current.scale <= 1.01) resetZoom(); else clampPan();
         return;
       }
-      if (g.current.moved < TAP_SLOP) setShow(s => !s);  // tap toggles controls
+      if (g.current.moved < TAP_SLOP) setShow(sh => !sh);
     },
   })).current;
 
@@ -208,6 +230,17 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
           <TouchableOpacity style={s.closeBtn} onPress={onBack}>
             <Text style={s.closeText}>✕</Text>
           </TouchableOpacity>
+
+          {hasPrev && (
+            <TouchableOpacity style={s.arrowLeft} onPress={goPrev} activeOpacity={0.7}>
+              <Text style={s.arrowText}>‹</Text>
+            </TouchableOpacity>
+          )}
+          {hasNext && (
+            <TouchableOpacity style={s.arrowRight} onPress={goNext} activeOpacity={0.7}>
+              <Text style={s.arrowText}>›</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={s.centerBtn} onPress={togglePlay} activeOpacity={0.8}>
             <Text style={s.centerIcon}>{playing ? '⏸' : '▶'}</Text>
@@ -272,6 +305,18 @@ const s = StyleSheet.create({
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
   },
   closeText: { color: '#fff', fontSize: 16 },
+
+  arrowLeft: {
+    position: 'absolute', left: 0, top: '50%', marginTop: -34,
+    paddingVertical: 18, paddingLeft: 8, paddingRight: 16,
+    backgroundColor: 'rgba(0,0,0,0.4)', borderTopRightRadius: 30, borderBottomRightRadius: 30,
+  },
+  arrowRight: {
+    position: 'absolute', right: 0, top: '50%', marginTop: -34,
+    paddingVertical: 18, paddingRight: 8, paddingLeft: 16,
+    backgroundColor: 'rgba(0,0,0,0.4)', borderTopLeftRadius: 30, borderBottomLeftRadius: 30,
+  },
+  arrowText: { color: 'rgba(255,255,255,0.92)', fontSize: 36, fontWeight: '200', lineHeight: 40 },
 
   centerBtn: {
     position: 'absolute', alignSelf: 'center', top: '46%',
