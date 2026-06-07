@@ -482,6 +482,21 @@ export async function detectPhotoFaces(
   return data.faces ?? [];
 }
 
+// Detect the people who appear in a video (samples frames on-device).
+export async function detectVideoFaces(
+  folderPath: string, name: string,
+): Promise<DetectedFace[]> {
+  const base = await deviceBase();
+  const res = await deviceFetch(`${base}/ai/faces/detect-video`, 180000, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: folderPath, name }),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.faces ?? [];
+}
+
 export interface WifiNetwork { ssid: string; signal: number; security: string; }
 export type WifiMode = 'ap' | 'client';
 

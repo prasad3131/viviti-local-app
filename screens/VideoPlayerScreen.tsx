@@ -2,9 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View, TouchableOpacity, Text, StyleSheet, ActivityIndicator,
   StatusBar, PanResponder, Animated, Dimensions, Platform,
+  Modal, ScrollView, Image, TextInput, Alert,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { photoUrlSync, videoUrl, getPhotos } from '../lib/api';
+import {
+  photoUrlSync, videoUrl, getPhotos,
+  detectVideoFaces, setFaceName, faceThumbnailUrl, DetectedFace,
+} from '../lib/api';
+
+type FaceWithUrl = DetectedFace & { thumbUrl: string | null };
 
 const { width, height } = Dimensions.get('screen');
 const SPEEDS = [0.15, 0.25, 0.5, 1, 1.5, 2, 4, 8];
@@ -58,6 +64,13 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
   const [showSpeed, setShowSpeed] = useState(false);
   const [buffering, setBuffering] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // People-in-video
+  const [faceDetecting, setFaceDetecting]     = useState(false);
+  const [faces, setFaces]                     = useState<FaceWithUrl[]>([]);
+  const [faceSheet, setFaceSheet]             = useState(false);
+  const [renameTarget, setRenameTarget]       = useState<FaceWithUrl | null>(null);
+  const [renameText, setRenameText]           = useState('');
 
   useEffect(() => {
     if (!uri) return;
@@ -126,6 +139,41 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
     setRate(r);
     setShowSpeed(false);
     reveal();
+  }
+
+  async function onDetectFaces() {
+    try { player.pause(); } catch {}
+    setPlaying(false);
+    setShow(true);
+    setFaceDetecting(true);
+    try {
+      const raw = await detectVideoFaces(folderPath, name);
+      const withUrls: FaceWithUrl[] = await Promise.all(
+        raw.map(async f => ({
+          ...f,
+          thumbUrl: f.thumb_filename ? await faceThumbnailUrl(f.thumb_filename) : null,
+        })),
+      );
+      setFaces(withUrls);
+      setFaceSheet(true);
+    } catch {
+      Alert.alert('Face detection failed', 'Could not scan this video for people.');
+    } finally {
+      setFaceDetecting(false);
+    }
+  }
+
+  async function handleSaveName() {
+    if (!renameTarget || !renameText.trim()) return;
+    const saved = renameText.trim();
+    try {
+      await setFaceName(renameTarget.cluster_id, saved, renameTarget.thumb_filename ?? undefined);
+      setFaces(prev => prev.map(f => f.cluster_id === renameTarget.cluster_id ? { ...f, cluster_name: saved } : f));
+    } catch {
+      Alert.alert('Error', 'Could not save name.');
+    } finally {
+      setRenameTarget(null);
+    }
   }
 
   // ── Seek bar ── follow the finger live, seek the player once on release
@@ -267,6 +315,12 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
             <Text style={s.closeText}>✕</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity style={s.peopleBtn} onPress={onDetectFaces} disabled={faceDetecting}>
+            {faceDetecting
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={s.peopleText}>👤</Text>}
+          </TouchableOpacity>
+
           {hasPrev && (
             <TouchableOpacity style={s.arrowLeft} onPress={goPrev} activeOpacity={0.7}>
               <Text style={s.arrowText}>‹</Text>
@@ -335,6 +389,62 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
           <Text style={s.time}>{fmt(dur)}</Text>
         </View>
       </View>
+
+      {/* ── People-in-video sheet ── */}
+      <Modal visible={faceSheet} transparent animationType="slide" onRequestClose={() => setFaceSheet(false)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setFaceSheet(false)} />
+        <View style={s.sheet}>
+          <View style={s.handle} />
+          <Text style={s.sheetTitle}>
+            {faces.length === 0 ? 'No people detected' : `${faces.length} ${faces.length === 1 ? 'person' : 'people'} in this video`}
+          </Text>
+          {faces.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.faceRow}>
+              {faces.map((face, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={s.faceCard}
+                  activeOpacity={0.8}
+                  onPress={() => { setRenameTarget(face); setRenameText(face.cluster_name ?? ''); }}
+                >
+                  {face.thumbUrl
+                    ? <Image source={{ uri: face.thumbUrl }} style={s.faceAvatar} />
+                    : <View style={[s.faceAvatar, s.faceAvatarEmpty]}><Text style={{ fontSize: 30 }}>👤</Text></View>}
+                  <Text style={s.faceName} numberOfLines={1}>{face.cluster_name ?? 'Tap to name'}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+          <TouchableOpacity style={s.sheetClose} onPress={() => setFaceSheet(false)}>
+            <Text style={s.sheetCloseTxt}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* ── Rename modal ── */}
+      <Modal visible={!!renameTarget} transparent animationType="fade">
+        <View style={s.renameOverlay}>
+          <View style={s.renameCard}>
+            <Text style={s.renameTitle}>Name this person</Text>
+            <TextInput
+              style={s.renameInput}
+              value={renameText}
+              onChangeText={setRenameText}
+              placeholder="Enter name…"
+              placeholderTextColor="#9e96a4"
+              autoFocus
+            />
+            <View style={s.renameRow}>
+              <TouchableOpacity style={s.renameCancel} onPress={() => setRenameTarget(null)}>
+                <Text style={s.renameCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.renameSave} onPress={handleSaveName}>
+                <Text style={s.renameSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -402,4 +512,36 @@ const s = StyleSheet.create({
   seekKnob: { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff', marginLeft: -9, top: -5.5 },
 
   knob: { position: 'absolute', width: 13, height: 13, borderRadius: 7, backgroundColor: '#fff', marginLeft: -6, top: -4.5 },
+
+  peopleBtn: {
+    position: 'absolute', top: 48, right: 20,
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20,
+    width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
+  },
+  peopleText: { fontSize: 18 },
+
+  overlay: { flex: 1 },
+  sheet: {
+    backgroundColor: '#1a1118', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 40,
+  },
+  handle: { width: 40, height: 4, backgroundColor: '#3d3344', borderRadius: 2, alignSelf: 'center', marginBottom: 18 },
+  sheetTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
+  faceRow: { gap: 16, paddingHorizontal: 4, paddingBottom: 8 },
+  faceCard: { alignItems: 'center', width: 90 },
+  faceAvatar: { width: 80, height: 80, borderRadius: 40, marginBottom: 8 },
+  faceAvatarEmpty: { backgroundColor: '#2a2030', justifyContent: 'center', alignItems: 'center' },
+  faceName: { color: '#e8e0ee', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  sheetClose: { marginTop: 18, backgroundColor: '#2a2030', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  sheetCloseTxt: { color: '#e8e0ee', fontSize: 16, fontWeight: '600' },
+
+  renameOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 32 },
+  renameCard: { backgroundColor: '#1a1118', borderRadius: 16, padding: 24 },
+  renameTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 14 },
+  renameInput: { backgroundColor: '#2a2030', borderRadius: 10, padding: 12, fontSize: 15, color: '#e8e0ee', marginBottom: 20 },
+  renameRow: { flexDirection: 'row', gap: 10 },
+  renameCancel: { flex: 1, backgroundColor: '#2a2030', borderRadius: 10, padding: 12, alignItems: 'center' },
+  renameCancelText: { color: '#9e96a4', fontWeight: '600' },
+  renameSave: { flex: 1, backgroundColor: '#6428b4', borderRadius: 10, padding: 12, alignItems: 'center' },
+  renameSaveText: { color: '#fff', fontWeight: '700' },
 });
