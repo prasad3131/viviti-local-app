@@ -10,6 +10,7 @@ const { width, height } = Dimensions.get('screen');
 const SPEEDS = [0.15, 0.25, 0.5, 1, 1.5, 2, 4, 8];
 const MAX_SCALE = 4;
 const TAP_SLOP = 12;
+const SWIPE_DIST = 60;
 
 function fmt(t: number) {
   if (!isFinite(t) || t < 0) t = 0;
@@ -189,6 +190,10 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
 
   function goPrev() { if (hasPrev) { resetZoom(); setName(videos[idx - 1]); reveal(); } }
   function goNext() { if (hasNext) { resetZoom(); setName(videos[idx + 1]); reveal(); } }
+  // Live ref so the once-created gesture handler always calls the current fns.
+  const navRef = useRef({ next: () => {}, prev: () => {} });
+  navRef.current.next = goNext;
+  navRef.current.prev = goPrev;
 
   const gesture = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -218,13 +223,17 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
         clampPan();
       }
     },
-    onPanResponderRelease: () => {
+    onPanResponderRelease: (_e, gs) => {
       if (g.current.pinching) {
         g.current.pinching = false;
         if (z.current.scale <= 1.01) resetZoom(); else clampPan();
         return;
       }
-      if (g.current.moved < TAP_SLOP) setShow(sh => !sh);
+      if (g.current.moved < TAP_SLOP) { setShow(sh => !sh); return; }
+      // Horizontal swipe → next/prev video (only when not zoomed)
+      if (z.current.scale <= 1.01 && Math.abs(gs.dx) > Math.abs(gs.dy) && Math.abs(gs.dx) > SWIPE_DIST) {
+        if (gs.dx < 0) navRef.current.next(); else navRef.current.prev();
+      }
     },
   })).current;
 
