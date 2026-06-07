@@ -9,10 +9,13 @@ interface Props {
   resizeMode?: 'contain' | 'cover' | 'stretch' | 'center';
   thumb?: boolean;
   size?: number;
+  // For videos: don't fall back to the original file on error (it's not an image).
+  noOriginalFallback?: boolean;
 }
 
 export default function SmartImage({
   folderPath, photoName, style, resizeMode = 'cover', thumb = false, size = 200,
+  noOriginalFallback = false,
 }: Props) {
   const [uri, setUri] = useState<string | null>(() =>
     thumb ? thumbUrlSync(folderPath, photoName, size) : photoUrlSync(folderPath, photoName),
@@ -33,7 +36,7 @@ export default function SmartImage({
   }, [folderPath, photoName, thumb, size]);
 
   function handleError() {
-    if (fellBack || !thumb) return;        // only a thumb can fall back, and only once
+    if (fellBack || !thumb || noOriginalFallback) return;  // only a thumb falls back, once
     setFellBack(true);
     const syncP = photoUrlSync(folderPath, photoName);
     if (syncP) { setUri(syncP); return; }

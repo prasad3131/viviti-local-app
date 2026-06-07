@@ -577,8 +577,16 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpen
               >
                 {item.isVideo ? (
                   <View style={[styles.thumb, styles.videoThumb]}>
-                    <Text style={styles.videoPlay}>▶</Text>
-                    <Text style={styles.videoLabel} numberOfLines={1}>{item.name}</Text>
+                    <SmartImage
+                      folderPath={currentPath}
+                      photoName={item.name}
+                      style={StyleSheet.absoluteFill as any}
+                      thumb
+                      noOriginalFallback
+                    />
+                    <View style={styles.videoPlayBadge}>
+                      <Text style={styles.videoPlay}>▶</Text>
+                    </View>
                   </View>
                 ) : (
                   <SmartImage folderPath={currentPath} photoName={item.name} style={styles.thumb} thumb />
@@ -740,8 +748,11 @@ const styles = StyleSheet.create({
   // Photo grid
   thumb: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderWidth: 0.5, borderColor: '#fefcfe' },
   videoThumb: { backgroundColor: '#1a1118', justifyContent: 'center', alignItems: 'center' },
-  videoPlay:  { fontSize: 28, color: '#fff', opacity: 0.9 },
-  videoLabel: { position: 'absolute', bottom: 4, left: 4, right: 4, color: '#ccc', fontSize: 9, textAlign: 'center' },
+  videoPlayBadge: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center',
+  },
+  videoPlay:  { fontSize: 16, color: '#fff', marginLeft: 2 },
   checkOverlay: {
     position: 'absolute', top: 0, left: 0, width: PHOTO_SIZE, height: PHOTO_SIZE,
     backgroundColor: 'rgba(37,122,240,0.5)', justifyContent: 'center', alignItems: 'center',
