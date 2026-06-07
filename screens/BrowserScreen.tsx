@@ -48,6 +48,7 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpen
   const [foldersOnly, setFoldersOnly] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // New folder modal
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -276,9 +277,10 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpen
     });
     if (result.canceled) return;
     setUploading(true);
+    setUploadProgress(0);
     try {
       const VIDEO_EXT = /\.(mp4|mov|m4v|3gp|avi|mkv|webm)$/i;
-      await uploadPhotos(currentPath, result.assets.map(a => {
+      const files = result.assets.map(a => {
         const isVideo = a.type === 'video'
           || /^video\//i.test(a.mimeType || '')
           || VIDEO_EXT.test(a.fileName || a.uri || '');
@@ -291,7 +293,10 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpen
           name: a.fileName || `${isVideo ? 'video' : 'photo'}_${Date.now()}.${ext}`,
           type: a.mimeType || (isVideo ? 'video/mp4' : 'image/jpeg'),
         };
-      }));
+      });
+      await uploadPhotos(currentPath, files, (frac, i, total) => {
+        setUploadProgress((i + frac) / total);
+      });
       load(currentPath);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Upload failed.');
@@ -443,7 +448,7 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpen
           {!foldersOnly && (
             <TouchableOpacity style={styles.pill} onPress={handleUpload} disabled={uploading}>
               {uploading
-                ? <ActivityIndicator size="small" color="#257af0" />
+                ? <Text style={styles.pillText}>{Math.round(uploadProgress * 100)}%</Text>
                 : <Text style={styles.pillText}>↑ Upload</Text>}
             </TouchableOpacity>
           )}

@@ -269,19 +269,34 @@ export async function thumbUrl(folderPath: string, name: string, size = 200): Pr
 export async function uploadPhotos(
   folderPath: string,
   assets: Array<{ uri: string; name: string; type: string }>,
+  onProgress?: (fraction: number, index: number, total: number) => void,
 ): Promise<void> {
   const base = await deviceBase();
-  // Upload one file at a time. Videos are large, so allow up to 5 min per file.
-  for (const asset of assets) {
-    const form = new FormData();
-    form.append('photos', { uri: asset.uri, name: asset.name, type: asset.type } as any);
+  const s = await cachedSession();
+  const key = s?.deviceKey;
+  // One file at a time, via XMLHttpRequest so we can report upload progress
+  // (fetch can't). Generous timeouts — the Pi's WiFi is the bottleneck.
+  for (let i = 0; i < assets.length; i++) {
+    const asset = assets[i];
     const isVideo = /^video\//i.test(asset.type) || /\.(mp4|mov|m4v|3gp|avi|mkv|webm)$/i.test(asset.name);
-    const res = await deviceFetch(
-      `${base}/photos/upload?path=${encodeURIComponent(folderPath)}`,
-      isVideo ? 300_000 : 90_000,
-      { method: 'POST', body: form },
-    );
-    if (!res.ok) throw new Error(`Failed to upload ${asset.name}`);
+    await new Promise<void>((resolve, reject) => {
+      const form = new FormData();
+      form.append('photos', { uri: asset.uri, name: asset.name, type: asset.type } as any);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${base}/photos/upload?path=${encodeURIComponent(folderPath)}`);
+      if (key) xhr.setRequestHeader('X-Viviti-Key', key);
+      xhr.timeout = isVideo ? 600_000 : 120_000;
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total, i, assets.length);
+      };
+      xhr.onload = () =>
+        (xhr.status >= 200 && xhr.status < 300)
+          ? resolve()
+          : reject(new Error(`Failed to upload ${asset.name}`));
+      xhr.onerror   = () => reject(new Error(`Failed to upload ${asset.name}`));
+      xhr.ontimeout = () => reject(new Error(`Upload timed out: ${asset.name}`));
+      xhr.send(form as any);
+    });
   }
 }
 
