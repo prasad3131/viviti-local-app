@@ -55,6 +55,7 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
   const [rate, setRate] = useState(1);
   const [show, setShow] = useState(true);
   const [showSpeed, setShowSpeed] = useState(false);
+  const [buffering, setBuffering] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -79,8 +80,9 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
         setCur(player.currentTime ?? 0);
         setDur(player.duration ?? 0);
         setPlaying(player.playing);
+        setBuffering((player as any).status === 'loading');
       } catch {}
-    }, 250);
+    }, 200);
     return () => clearInterval(id);
   }, [player]);
 
@@ -99,8 +101,21 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
 
   function togglePlay() {
     try {
-      if (player.playing) { player.pause(); setShow(true); }
-      else { player.play(); reveal(); }
+      if (player.playing) {
+        player.pause();
+        setPlaying(false);   // optimistic — flip icon instantly
+        setShow(true);
+      } else {
+        const d = player.duration || 0;
+        // If the video ended, restart from the beginning.
+        if (d > 0 && player.currentTime >= d - 0.25) {
+          player.currentTime = 0;
+          setCur(0);
+        }
+        player.play();
+        setPlaying(true);    // optimistic — flip icon instantly
+        reveal();
+      }
     } catch {}
   }
 
@@ -225,6 +240,13 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
       {/* Gesture catcher sits ON TOP of the native video so taps/pinch register */}
       <View style={StyleSheet.absoluteFill} {...gesture.panHandlers} />
 
+      {/* Buffering spinner — shows the player is loading/streaming, not frozen */}
+      {buffering && (
+        <View style={[StyleSheet.absoluteFill, s.center]} pointerEvents="none">
+          <ActivityIndicator color="#fff" size="large" />
+        </View>
+      )}
+
       {show && (
         <>
           <TouchableOpacity style={s.closeBtn} onPress={onBack}>
@@ -242,9 +264,11 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity style={s.centerBtn} onPress={togglePlay} activeOpacity={0.8}>
-            <Text style={s.centerIcon}>{playing ? '⏸' : '▶'}</Text>
-          </TouchableOpacity>
+          {!buffering && (
+            <TouchableOpacity style={s.centerBtn} onPress={togglePlay} activeOpacity={0.8}>
+              <Text style={s.centerIcon}>{playing ? '⏸' : '▶'}</Text>
+            </TouchableOpacity>
+          )}
 
           {showSpeed && (
             <View style={s.speedMenu}>
