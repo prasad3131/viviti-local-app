@@ -295,7 +295,8 @@ export default function BrowserScreen({ onBack, onOpenPhoto, onOpenVideo, onOpen
         };
       });
       await uploadPhotos(currentPath, files, (frac, i, total) => {
-        setUploadProgress((i + frac) / total);
+        // frac can momentarily exceed 1 (multipart overhead vs reported size) — clamp.
+        setUploadProgress(Math.min(1, (i + Math.min(1, frac)) / total));
       });
       load(currentPath);
     } catch (err: any) {
