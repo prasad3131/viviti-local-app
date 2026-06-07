@@ -74,10 +74,11 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
     })();
   }, [uri, player]);
 
+  const seeking = useRef(false);
   useEffect(() => {
     const id = setInterval(() => {
       try {
-        setCur(player.currentTime ?? 0);
+        if (!seeking.current) setCur(player.currentTime ?? 0);  // don't fight the finger
         setDur(player.duration ?? 0);
         setPlaying(player.playing);
         setBuffering((player as any).status === 'loading');
@@ -126,20 +127,24 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
     reveal();
   }
 
-  // ── Seek bar ──
+  // ── Seek bar ── follow the finger live, seek the player once on release
   const seekW = useRef(1);
-  const seekTo = (x: number) => {
+  const seekFrac = useRef(0);
+  const seekVisual = (x: number) => {
     const frac = Math.max(0, Math.min(1, x / seekW.current));
-    const d = player.duration || 0;
-    try { player.currentTime = frac * d; } catch {}
-    setCur(frac * d);
-    reveal();
+    seekFrac.current = frac;
+    setCur(frac * (player.duration || 0));
   };
   const seekPan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: e => seekTo(e.nativeEvent.locationX),
-    onPanResponderMove:  e => seekTo(e.nativeEvent.locationX),
+    onPanResponderGrant: e => { seeking.current = true; seekVisual(e.nativeEvent.locationX); reveal(); },
+    onPanResponderMove:  e => seekVisual(e.nativeEvent.locationX),
+    onPanResponderRelease: () => {
+      try { player.currentTime = seekFrac.current * (player.duration || 0); } catch {}
+      setTimeout(() => { seeking.current = false; }, 300); // let the player settle
+      reveal();
+    },
   })).current;
 
   // ── Volume bar ──
@@ -284,37 +289,43 @@ export default function VideoPlayerScreen({ folderPath, videoName, onBack }: Pro
             </View>
           )}
 
-          <View style={s.bottom}>
-            <View style={s.controlsRow}>
-              <Text style={s.volIcon}>{vol === 0 ? '🔇' : '🔊'}</Text>
-              <View
-                style={s.volTrack}
-                onLayout={e => { volW.current = e.nativeEvent.layout.width; }}
-                {...volPan.panHandlers}
-              >
-                <View style={[s.volFill, { width: `${vol * 100}%` }]} />
-                <View style={[s.knob, { left: `${vol * 100}%` }]} />
-              </View>
-              <TouchableOpacity style={s.speedBtn} onPress={() => { setShowSpeed(v => !v); reveal(); }}>
-                <Text style={s.speedText}>{rate}x</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={s.progressRow}>
-              <Text style={s.time}>{fmt(cur)}</Text>
-              <View
-                style={s.seekTrack}
-                onLayout={e => { seekW.current = e.nativeEvent.layout.width; }}
-                {...seekPan.panHandlers}
-              >
-                <View style={[s.seekFill, { width: `${pct}%` }]} />
-                <View style={[s.knob, { left: `${pct}%` }]} />
-              </View>
-              <Text style={s.time}>{fmt(dur)}</Text>
-            </View>
-          </View>
         </>
       )}
+
+      {/* Progress bar is always visible; volume + speed only when controls shown */}
+      <View style={s.bottom}>
+        {show && (
+          <View style={s.controlsRow}>
+            <Text style={s.volIcon}>{vol === 0 ? '🔇' : '🔊'}</Text>
+            <View
+              style={s.volTrack}
+              onLayout={e => { volW.current = e.nativeEvent.layout.width; }}
+              {...volPan.panHandlers}
+            >
+              <View style={[s.volFill, { width: `${vol * 100}%` }]} />
+              <View style={[s.knob, { left: `${vol * 100}%` }]} />
+            </View>
+            <TouchableOpacity style={s.speedBtn} onPress={() => { setShowSpeed(v => !v); reveal(); }}>
+              <Text style={s.speedText}>{rate}x</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={s.progressRow}>
+          <Text style={s.time}>{fmt(cur)}</Text>
+          <View
+            style={s.seekHit}
+            onLayout={e => { seekW.current = e.nativeEvent.layout.width; }}
+            {...seekPan.panHandlers}
+          >
+            <View style={s.seekTrack}>
+              <View style={[s.seekFill, { width: `${pct}%` }]} />
+              <View style={[s.seekKnob, { left: `${pct}%` }]} />
+            </View>
+          </View>
+          <Text style={s.time}>{fmt(dur)}</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -374,9 +385,12 @@ const s = StyleSheet.create({
   speedItemTextActive: { color: '#fff', fontWeight: '800' },
 
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  time: { color: '#fff', fontSize: 12, width: 42, textAlign: 'center' },
-  seekTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center' },
-  seekFill: { position: 'absolute', left: 0, height: 4, borderRadius: 2, backgroundColor: '#257af0' },
+  time: { color: '#fff', fontSize: 13, width: 44, textAlign: 'center' },
+  // Tall, transparent touch area so the slim bar is easy to grab.
+  seekHit: { flex: 1, height: 24, justifyContent: 'center' },
+  seekTrack: { height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.3)' },
+  seekFill: { position: 'absolute', left: 0, height: 7, borderRadius: 4, backgroundColor: '#257af0' },
+  seekKnob: { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff', marginLeft: -9, top: -5.5 },
 
   knob: { position: 'absolute', width: 13, height: 13, borderRadius: 7, backgroundColor: '#fff', marginLeft: -6, top: -4.5 },
 });
